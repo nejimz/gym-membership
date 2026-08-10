@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MembershipStatus, Role } from '@prisma/client';
+import { MembershipStatus, Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/current-user.decorator';
@@ -14,24 +14,42 @@ import { CreateMemberDto, UpdateMemberDto } from './dto/member.dto';
 export class MembersService {
   constructor(private prisma: PrismaService) {}
 
-  async list(q?: string, status?: MembershipStatus) {
-    return this.prisma.memberProfile.findMany({
-      where: {
-        ...(status ? { status } : {}),
-        ...(q
-          ? {
-              OR: [
-                { firstName: { contains: q, mode: 'insensitive' } },
-                { lastName: { contains: q, mode: 'insensitive' } },
-                { phone: { contains: q, mode: 'insensitive' } },
-                { user: { email: { contains: q, mode: 'insensitive' } } },
-              ],
-            }
-          : {}),
-      },
-      include: { plan: true, user: { select: { id: true, email: true, role: true } } },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-    });
+  async list(
+    q?: string,
+    status?: MembershipStatus,
+    page = 1,
+    pageSize = 25,
+  ) {
+    const take = Math.min(Math.max(pageSize, 1), 100);
+    const currentPage = Math.max(page, 1);
+    const skip = (currentPage - 1) * take;
+
+    const where: Prisma.MemberProfileWhereInput = {
+      ...(status ? { status } : {}),
+      ...(q
+        ? {
+            OR: [
+              { firstName: { contains: q, mode: 'insensitive' } },
+              { lastName: { contains: q, mode: 'insensitive' } },
+              { phone: { contains: q, mode: 'insensitive' } },
+              { user: { email: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.memberProfile.findMany({
+        where,
+        include: { plan: true, user: { select: { id: true, email: true, role: true } } },
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        skip,
+        take,
+      }),
+      this.prisma.memberProfile.count({ where }),
+    ]);
+
+    return { data, total, page: currentPage, pageSize: take };
   }
 
   async get(id: string, actor: AuthUser) {

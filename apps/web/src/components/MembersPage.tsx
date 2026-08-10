@@ -17,11 +17,34 @@ type Member = {
   user: { email: string };
 };
 
+type MembersResponse = {
+  data: Member[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+const PAGE_SIZE = 25;
+
+function normalizeMembersResponse(res: MembersResponse | Member[]): MembersResponse {
+  if (Array.isArray(res)) {
+    return { data: res, total: res.length, page: 1, pageSize: res.length || PAGE_SIZE };
+  }
+  return {
+    data: Array.isArray(res.data) ? res.data : [],
+    total: typeof res.total === 'number' ? res.total : 0,
+    page: typeof res.page === 'number' ? res.page : 1,
+    pageSize: typeof res.pageSize === 'number' ? res.pageSize : PAGE_SIZE,
+  };
+}
+
 export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
   const { formatMoney } = useSettings();
   const [members, setMembers] = useState<Member[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -34,14 +57,24 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
     dateOfBirth: '',
   });
 
-  async function load(search = q) {
-    const query = search ? `?q=${encodeURIComponent(search)}` : '';
-    const [m, p] = await Promise.all([
-      api<Member[]>(`/members${query}`),
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  async function load(search = q, nextPage = page) {
+    const params = new URLSearchParams({
+      page: String(nextPage),
+      pageSize: String(PAGE_SIZE),
+    });
+    if (search) params.set('q', search);
+
+    const [rawMembers, p] = await Promise.all([
+      api<MembersResponse | Member[]>(`/members?${params}`),
       api<Plan[]>('/plans'),
     ]);
-    setMembers(m);
-    setPlans(p);
+    const m = normalizeMembersResponse(rawMembers);
+    setMembers(m.data);
+    setTotal(m.total);
+    setPage(m.page);
+    setPlans(Array.isArray(p) ? p : []);
     if (!form.planId && p[0]) {
       setForm((f) => ({ ...f, planId: p[0].id }));
     }
@@ -50,6 +83,25 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, []);
+
+  async function onSearch() {
+    setPage(1);
+    try {
+      await load(q, 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Search failed');
+    }
+  }
+
+  async function goToPage(nextPage: number) {
+    const clamped = Math.min(Math.max(nextPage, 1), totalPages);
+    setPage(clamped);
+    try {
+      await load(q, clamped);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Load failed');
+    }
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -72,11 +124,14 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
         phone: '',
         dateOfBirth: '',
       }));
-      await load();
+      await load(q, 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create failed');
     }
   }
+
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(page * PAGE_SIZE, total);
 
   return (
     <div className="space-y-6">
@@ -96,8 +151,11 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
           placeholder="Search name, email, phone"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSearch();
+          }}
         />
-        <button type="button" className="btn-secondary" onClick={() => load(q)}>
+        <button type="button" className="btn-secondary" onClick={onSearch}>
           Search
         </button>
       </div>
@@ -180,8 +238,42 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
                 </td>
               </tr>
             ))}
+            {members.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-ink-800/60" colSpan={6}>
+                  No members found.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink-800/70">
+        <p>
+          Showing {from}–{to} of {total}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={page <= 1}
+            onClick={() => goToPage(page - 1)}
+          >
+            Previous
+          </button>
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={page >= totalPages}
+            onClick={() => goToPage(page + 1)}
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PlansModule } from './plans/plans.module';
 import { MailModule } from './mail/mail.module';
 import { SettingsModule } from './settings/settings.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SettingsModule } from './settings/settings.module';
     AuthModule,
     PlansModule,
     MembersModule,
+    UsersModule,
     AttendanceModule,
     ProgressModule,
     ReportsModule,

@@ -25,8 +25,15 @@ export class MembersController {
   list(
     @Query('q') q?: string,
     @Query('status') status?: MembershipStatus,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.members.list(q, status);
+    return this.members.list(
+      q,
+      status,
+      page ? Number(page) : 1,
+      pageSize ? Number(pageSize) : 25,
+    );
   }
 
   @Get('renewals')

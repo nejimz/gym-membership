@@ -96,7 +96,8 @@ export default function LoginPage() {
             {busy ? 'Signing in…' : 'Enter gym desk'}
           </button>
           <p className="mt-4 text-xs text-ink-800/60">
-            Demo: admin@gym.local / staff@gym.local / alice@gym.local — password123
+            Demo: admin@gym.local / admin2@gym.local / staff@gym.local / staff2@gym.local —
+            password123
           </p>
         </form>
       </div>

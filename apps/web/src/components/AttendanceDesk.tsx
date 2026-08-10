@@ -35,8 +35,13 @@ export function AttendanceDesk() {
   }, []);
 
   async function search() {
-    const list = await api<Member[]>(`/members?q=${encodeURIComponent(q)}`);
-    setMembers(list);
+    const params = new URLSearchParams({
+      q,
+      page: '1',
+      pageSize: '20',
+    });
+    const res = await api<{ data: Member[] } | Member[]>(`/members?${params}`);
+    setMembers(Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : []);
   }
 
   async function checkIn(memberId: string) {
