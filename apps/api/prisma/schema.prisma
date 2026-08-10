@@ -141,6 +141,7 @@ model AppSettings {
   id          String   @id @default("default")
   companyName String   @default("Ironleaf Gym")
   logoUrl     String?
+  faviconUrl  String?
   currency    String   @default("PHP")
   updatedAt   DateTime @updatedAt
 }

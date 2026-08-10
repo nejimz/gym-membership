@@ -70,6 +70,7 @@ async function main() {
       companyName: 'Ironleaf Gym',
       currency: 'PHP',
       logoUrl: null,
+      faviconUrl: null,
     },
   });
 

@@ -25,6 +25,7 @@ async function bootstrap() {
   if (!existsSync(uploadsRoot)) {
     mkdirSync(join(uploadsRoot, 'logos'), { recursive: true });
   }
+  mkdirSync(join(uploadsRoot, 'favicons'), { recursive: true });
   app.useStaticAssets(uploadsRoot, { prefix: '/uploads' });
 
   app.setGlobalPrefix('api');

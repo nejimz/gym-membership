@@ -232,8 +232,26 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
                   {m.endDate ? new Date(m.endDate).toLocaleDateString() : '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <Link className="text-moss-700 underline" href={`${basePath}/members/${m.id}`}>
-                    Open
+                  <Link
+                    className="inline-flex items-center justify-center rounded-md p-1.5 text-moss-700 hover:bg-moss-700/10"
+                    href={`${basePath}/members/${m.id}`}
+                    aria-label={`Open ${m.firstName} ${m.lastName}`}
+                    title="Open"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M15 3h6v6" />
+                      <path d="M10 14 21 3" />
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    </svg>
                   </Link>
                 </td>
               </tr>

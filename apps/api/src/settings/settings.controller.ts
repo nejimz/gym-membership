@@ -11,7 +11,11 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
-import { SettingsService, logoUploadOptions } from './settings.service';
+import {
+  SettingsService,
+  faviconUploadOptions,
+  logoUploadOptions,
+} from './settings.service';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
@@ -45,5 +49,20 @@ export class SettingsController {
   @Roles(Role.ADMIN)
   clearLogo() {
     return this.settings.clearLogo();
+  }
+
+  @Post('favicon')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @UseInterceptors(FileInterceptor('favicon', faviconUploadOptions()))
+  uploadFavicon(@UploadedFile() file: Express.Multer.File) {
+    return this.settings.uploadFavicon(file);
+  }
+
+  @Delete('favicon')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  clearFavicon() {
+    return this.settings.clearFavicon();
   }
 }

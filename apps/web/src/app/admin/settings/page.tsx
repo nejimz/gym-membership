@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { resolveAssetUrl, useSettings } from '@/lib/settings';
 
 export default function AdminSettingsPage() {
-  const { settings, refresh, logoSrc } = useSettings();
+  const { settings, refresh, logoSrc, faviconSrc } = useSettings();
   const [companyName, setCompanyName] = useState(settings.companyName);
   const [logoUrl, setLogoUrl] = useState(settings.logoUrl ?? '');
   const [currency, setCurrency] = useState(settings.currency);
@@ -75,6 +75,39 @@ export default function AdminSettingsPage() {
       setLogoUrl('');
       await refresh();
       setSaved('Logo cleared.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Clear failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUploadFavicon(file: File | null) {
+    if (!file) return;
+    setBusy(true);
+    setError('');
+    setSaved('');
+    try {
+      const form = new FormData();
+      form.append('favicon', file);
+      await api('/settings/favicon', { method: 'POST', body: form });
+      await refresh();
+      setSaved('Favicon uploaded.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Favicon upload failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onClearFavicon() {
+    setBusy(true);
+    setError('');
+    setSaved('');
+    try {
+      await api('/settings/favicon', { method: 'DELETE' });
+      await refresh();
+      setSaved('Favicon reset to default.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Clear failed');
     } finally {
@@ -164,6 +197,52 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
             ) : null}
+          </div>
+
+          <div className="space-y-3 border-t border-ink-800/10 pt-4">
+            <p className="label">Favicon</p>
+            <p className="text-xs text-ink-800/55">
+              Browser tab icon. Default leaf icon is used until you upload a custom one.
+            </p>
+            <div>
+              <label className="mb-1 block text-sm text-ink-800/70" htmlFor="faviconFile">
+                Upload favicon
+              </label>
+              <input
+                id="faviconFile"
+                className="input"
+                type="file"
+                accept=".ico,image/x-icon,image/png,image/jpeg,image/webp,image/gif"
+                disabled={busy}
+                onChange={(e) => onUploadFavicon(e.target.files?.[0] ?? null)}
+              />
+              <p className="mt-1 text-xs text-ink-800/55">
+                ICO, PNG, JPEG, WebP, or GIF — max 512KB.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={faviconSrc || '/favicon.ico'}
+                alt="Favicon preview"
+                className="h-8 w-8 rounded border border-ink-800/10 bg-white object-contain p-0.5"
+              />
+              <div className="space-y-1">
+                <p className="text-xs text-ink-800/60">
+                  {settings.faviconUrl ? 'Custom favicon' : 'Default favicon'}
+                </p>
+                {settings.faviconUrl ? (
+                  <button
+                    type="button"
+                    className="btn-ghost px-0 text-sm text-ember-500"
+                    disabled={busy}
+                    onClick={onClearFavicon}
+                  >
+                    Reset to default
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <div>

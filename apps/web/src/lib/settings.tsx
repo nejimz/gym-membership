@@ -16,6 +16,7 @@ export type AppSettings = {
   id: string;
   companyName: string;
   logoUrl: string | null;
+  faviconUrl: string | null;
   currency: string;
 };
 
@@ -25,6 +26,7 @@ type SettingsContextValue = {
   refresh: () => Promise<void>;
   formatMoney: (amount: number | string) => string;
   logoSrc: string | null;
+  faviconSrc: string | null;
   resolveAssetUrl: (url: string | null | undefined) => string | null;
 };
 
@@ -32,6 +34,7 @@ const defaults: AppSettings = {
   id: 'default',
   companyName: 'Ironleaf Gym',
   logoUrl: null,
+  faviconUrl: null,
   currency: 'PHP',
 };
 
@@ -52,7 +55,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const data = await api<AppSettings>('/settings');
-      setSettings(data);
+      setSettings({
+        ...defaults,
+        ...data,
+        faviconUrl: data.faviconUrl ?? null,
+      });
     } catch {
       setSettings(defaults);
     } finally {
@@ -85,6 +92,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     [settings.logoUrl],
   );
 
+  const faviconSrc = useMemo(
+    () => resolveAssetUrl(settings.faviconUrl),
+    [settings.faviconUrl],
+  );
+
   const value = useMemo(
     () => ({
       settings,
@@ -92,9 +104,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       refresh,
       formatMoney,
       logoSrc,
+      faviconSrc,
       resolveAssetUrl,
     }),
-    [settings, loading, refresh, formatMoney, logoSrc],
+    [settings, loading, refresh, formatMoney, logoSrc, faviconSrc],
   );
 
   return (

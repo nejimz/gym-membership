@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth';
 import { SettingsProvider } from '@/lib/settings';
+import { DocumentFavicon } from '@/components/DocumentFavicon';
 
 export const metadata: Metadata = {
   title: 'Ironleaf Gym Membership',
@@ -13,6 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <SettingsProvider>
+          <DocumentFavicon />
           <AuthProvider>{children}</AuthProvider>
         </SettingsProvider>
       </body>
