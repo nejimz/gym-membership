@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+enum NotificationType {
+  RENEWAL
+  BIRTHDAY
+  SYSTEM
+  SUGGESTION
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  member       MemberProfile?
+  notifications Notification[]
+  auditLogs    AuditLog[]     @relation("AuditActor")
+  attendancesRecorded Attendance[] @relation("AttendanceRecorder")
+}
+
+model MembershipPlan {
+  id           String          @id @default(cuid())
+  name         String
+  durationDays Int
+  price        Decimal         @db.Decimal(10, 2)
+  description  String?
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  members      MemberProfile[]
+}
+
+model MemberProfile {
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName        String
+  lastName         String
+  phone            String?
+  dateOfBirth      DateTime?
+  emergencyContact String?
+  photoUrl         String?
+  status           MembershipStatus @default(ACTIVE)
+  planId           String?
+  plan             MembershipPlan?  @relation(fields: [planId], references: [id])
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  attendances      Attendance[]
+  bodyMetrics      BodyMetric[]
+
+  @@index([status])
+  @@index([endDate])
+  @@index([lastName, firstName])
+}
+
+model Attendance {
+  id           String    @id @default(cuid())
+  memberId     String
+  member       MemberProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  checkInAt    DateTime  @default(now())
+  checkOutAt   DateTime?
+  recordedById String?
+  recordedBy   User?     @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@index([memberId, checkInAt])
+  @@index([checkInAt])
+}
+
+model BodyMetric {
+  id         String        @id @default(cuid())
+  memberId   String
+  member     MemberProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  recordedAt DateTime      @default(now())
+  weightKg   Float?
+  bodyFatPct Float?
+  chestCm    Float?
+  waistCm    Float?
+  hipsCm     Float?
+  armsCm     Float?
+  notes      String?
+  photoUrl   String?
+  createdAt  DateTime      @default(now())
+
+  @@index([memberId, recordedAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  meta      Json?
+  readAt    DateTime?
+  emailSent Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model AppSettings {
+  id          String   @id @default("default")
+  companyName String   @default("Ironleaf Gym")
+  logoUrl     String?
+  currency    String   @default("PHP")
+  updatedAt   DateTime @updatedAt
+}
