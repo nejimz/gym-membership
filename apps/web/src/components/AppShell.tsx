@@ -34,6 +34,45 @@ const NAV: Record<Role, NavItem[]> = {
   ],
 };
 
+const ROLE_HOME: Record<Role, string> = {
+  ADMIN: '/admin',
+  STAFF: '/staff',
+  MEMBER: '/member',
+};
+
+function isNavActive(pathname: string, href: string, roleHome: string) {
+  if (href === roleHome) return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function MenuIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  ) : (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
 export function AppShell({
   role,
   children,
@@ -46,6 +85,7 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname();
   const [unread, setUnread] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -70,6 +110,19 @@ export function AppShell({
       .catch(() => setUnread(0));
   }, [user, pathname]);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [sidebarOpen]);
+
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-ink-800/70">
@@ -79,63 +132,114 @@ export function AppShell({
   }
 
   const items = NAV[role];
+  const roleHome = ROLE_HOME[role];
+
+  async function onLogout() {
+    await logout();
+    router.push('/login');
+  }
+
+  const brand = (
+    <div className="flex items-center gap-3">
+      {logoSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoSrc}
+          alt=""
+          className="h-10 w-10 shrink-0 rounded-md bg-white/10 object-cover"
+        />
+      ) : null}
+      <div className="min-w-0">
+        <p className="truncate font-display text-xl font-bold tracking-tight">
+          {settings.companyName}
+        </p>
+        <p className="truncate text-xs uppercase tracking-[0.18em] text-moss-400">
+          {user.role.toLowerCase()} · {user.name || user.email}
+        </p>
+      </div>
+    </div>
+  );
+
+  const navLinks = (
+    <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
+      {items.map((item) => {
+        const active = isNavActive(pathname, item.href, roleHome);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={clsx(
+              'flex items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium transition',
+              active
+                ? 'bg-moss-600 text-white'
+                : 'text-sand-100/80 hover:bg-white/10 hover:text-white',
+            )}
+          >
+            <span>{item.label}</span>
+            {item.label === 'Alerts' && unread > 0 ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ember-500 px-1 text-[11px] font-bold text-white">
+                {unread}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+
+  const logoutButton = (
+    <button
+      type="button"
+      className="rounded-md px-3 py-2.5 text-left text-sm font-medium text-sand-100/80 transition hover:bg-white/10 hover:text-white"
+      onClick={onLogout}
+    >
+      Log out
+    </button>
+  );
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-ink-800/10 bg-ink-950/95 text-sand-50 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-          <div className="flex items-center gap-3">
-            {logoSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logoSrc}
-                alt=""
-                className="h-10 w-10 rounded-md bg-white/10 object-cover"
-              />
-            ) : null}
-            <div>
-              <p className="font-display text-2xl font-bold tracking-tight">
-                {settings.companyName}
-              </p>
-              <p className="text-xs uppercase tracking-[0.18em] text-moss-400">
-                {user.role.toLowerCase()} · {user.name || user.email}
-              </p>
-            </div>
-          </div>
-          <nav className="flex flex-wrap items-center gap-1" aria-label="Main">
-            {items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={clsx(
-                  'rounded-md px-3 py-2 text-sm font-medium transition',
-                  pathname === item.href
-                    ? 'bg-moss-600 text-white'
-                    : 'text-sand-100/80 hover:bg-white/10 hover:text-white',
-                )}
-              >
-                {item.label}
-                {item.label === 'Alerts' && unread > 0 ? (
-                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ember-500 px-1 text-[11px] font-bold text-white">
-                    {unread}
-                  </span>
-                ) : null}
-              </Link>
-            ))}
-            <button
-              type="button"
-              className="btn-ghost ml-2 text-sand-100"
-              onClick={async () => {
-                await logout();
-                router.push('/login');
-              }}
-            >
-              Log out
-            </button>
-          </nav>
-        </div>
+    <div className="min-h-screen md:flex">
+      {/* Mobile top bar */}
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-ink-800/10 bg-ink-950/95 px-4 py-3 text-sand-50 backdrop-blur md:hidden">
+        <div className="min-w-0 flex-1">{brand}</div>
+        <button
+          type="button"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-white/10"
+          aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={sidebarOpen}
+          onClick={() => setSidebarOpen((v) => !v)}
+        >
+          <MenuIcon open={sidebarOpen} />
+        </button>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+
+      {/* Mobile backdrop */}
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-ink-950/50 md:hidden"
+          aria-label="Close menu"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
+
+      {/* Sidebar / drawer */}
+      <aside
+        className={clsx(
+          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-ink-950 text-sand-50 transition-transform duration-200 ease-out md:static md:z-0 md:translate-x-0',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        )}
+      >
+        <div className="hidden border-b border-white/10 px-4 py-5 md:block">{brand}</div>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
+          {navLinks}
+          {logoutButton}
+        </div>
+      </aside>
+
+      <main className="min-w-0 flex-1">
+        <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
+      </main>
     </div>
   );
 }
