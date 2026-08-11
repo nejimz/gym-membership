@@ -26,6 +26,11 @@ enum NotificationType {
   SUGGESTION
 }
 
+enum Sex {
+  MALE
+  FEMALE
+}
+
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
@@ -61,6 +66,8 @@ model MemberProfile {
   dateOfBirth      DateTime?
   emergencyContact String?
   photoUrl         String?
+  heightCm         Float?
+  sex              Sex?
   status           MembershipStatus @default(ACTIVE)
   planId           String?
   plan             MembershipPlan?  @relation(fields: [planId], references: [id])
@@ -91,19 +98,23 @@ model Attendance {
 }
 
 model BodyMetric {
-  id         String        @id @default(cuid())
-  memberId   String
-  member     MemberProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  recordedAt DateTime      @default(now())
-  weightKg   Float?
-  bodyFatPct Float?
-  chestCm    Float?
-  waistCm    Float?
-  hipsCm     Float?
-  armsCm     Float?
-  notes      String?
-  photoUrl   String?
-  createdAt  DateTime      @default(now())
+  id           String        @id @default(cuid())
+  memberId     String
+  member       MemberProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  recordedAt   DateTime      @default(now())
+  weightKg     Float?
+  bodyFatPct   Float?
+  chestCm      Float?
+  waistCm      Float?
+  hipsCm       Float?
+  armsCm       Float?
+  thighsCm     Float?
+  neckCm       Float?
+  restingHrBpm Int?
+  leanMassKg   Float?
+  notes        String?
+  photoUrl     String?
+  createdAt    DateTime      @default(now())
 
   @@index([memberId, recordedAt])
 }

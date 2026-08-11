@@ -2,7 +2,9 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { LineMetricChart } from '@/components/Charts';
+import { ComposedMetricChart, LineMetricChart } from '@/components/Charts';
+
+type Sex = 'MALE' | 'FEMALE';
 
 type Member = {
   id: string;
@@ -13,6 +15,8 @@ type Member = {
   endDate?: string;
   dateOfBirth?: string;
   emergencyContact?: string;
+  heightCm?: number | null;
+  sex?: Sex | null;
   plan?: { name: string };
   user: { email: string };
   attendances: { checkInAt: string; checkOutAt?: string }[];
@@ -21,12 +25,42 @@ type Member = {
 type Metric = {
   id: string;
   recordedAt: string;
-  weightKg?: number;
-  bodyFatPct?: number;
-  waistCm?: number;
-  notes?: string;
-  photoUrl?: string;
+  weightKg?: number | null;
+  bodyFatPct?: number | null;
+  waistCm?: number | null;
+  thighsCm?: number | null;
+  neckCm?: number | null;
+  restingHrBpm?: number | null;
+  leanMassKg?: number | null;
+  estimatedLeanMassKg?: number | null;
+  effectiveLeanMassKg?: number | null;
+  notes?: string | null;
+  photoUrl?: string | null;
 };
+
+type CorrelationRow = {
+  month: string;
+  visitCount: number;
+  avgWeightKg: number | null;
+  weightDeltaKg: number | null;
+};
+
+const emptyMetricForm = {
+  weightKg: '',
+  bodyFatPct: '',
+  waistCm: '',
+  hipsCm: '',
+  thighsCm: '',
+  neckCm: '',
+  restingHrBpm: '',
+  leanMassKg: '',
+  notes: '',
+  photoUrl: '',
+};
+
+function num(value: string) {
+  return value ? Number(value) : undefined;
+}
 
 export function MemberDetailPage({
   memberId,
@@ -37,22 +71,23 @@ export function MemberDetailPage({
 }) {
   const [member, setMember] = useState<Member | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [correlation, setCorrelation] = useState<CorrelationRow[]>([]);
   const [error, setError] = useState('');
-  const [metricForm, setMetricForm] = useState({
-    weightKg: '',
-    bodyFatPct: '',
-    waistCm: '',
-    notes: '',
-    photoUrl: '',
-  });
+  const [heightCm, setHeightCm] = useState('');
+  const [sex, setSex] = useState<Sex | ''>('');
+  const [metricForm, setMetricForm] = useState(emptyMetricForm);
 
   async function load() {
-    const [m, prog] = await Promise.all([
+    const [m, prog, corr] = await Promise.all([
       api<Member>(`/members/${memberId}`),
       api<Metric[]>(`/progress/${memberId}`),
+      api<CorrelationRow[]>(`/progress/${memberId}/activity-correlation?months=6`),
     ]);
     setMember(m);
     setMetrics(prog);
+    setCorrelation(corr);
+    setHeightCm(m.heightCm != null ? String(m.heightCm) : '');
+    setSex(m.sex ?? '');
   }
 
   useEffect(() => {
@@ -74,20 +109,39 @@ export function MemberDetailPage({
     await load();
   }
 
+  async function saveProfile(e: FormEvent) {
+    e.preventDefault();
+    await api(`/members/${memberId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        heightCm: heightCm ? Number(heightCm) : undefined,
+        sex: sex || undefined,
+      }),
+    });
+    await load();
+  }
+
   async function addMetric(e: FormEvent) {
     e.preventDefault();
     await api('/progress', {
       method: 'POST',
       body: JSON.stringify({
         memberId,
-        weightKg: metricForm.weightKg ? Number(metricForm.weightKg) : undefined,
-        bodyFatPct: metricForm.bodyFatPct ? Number(metricForm.bodyFatPct) : undefined,
-        waistCm: metricForm.waistCm ? Number(metricForm.waistCm) : undefined,
+        weightKg: num(metricForm.weightKg),
+        bodyFatPct: num(metricForm.bodyFatPct),
+        waistCm: num(metricForm.waistCm),
+        hipsCm: num(metricForm.hipsCm),
+        thighsCm: num(metricForm.thighsCm),
+        neckCm: num(metricForm.neckCm),
+        restingHrBpm: metricForm.restingHrBpm
+          ? Number(metricForm.restingHrBpm)
+          : undefined,
+        leanMassKg: num(metricForm.leanMassKg),
         notes: metricForm.notes || undefined,
         photoUrl: metricForm.photoUrl || undefined,
       }),
     });
-    setMetricForm({ weightKg: '', bodyFatPct: '', waistCm: '', notes: '', photoUrl: '' });
+    setMetricForm(emptyMetricForm);
     await load();
   }
 
@@ -98,6 +152,14 @@ export function MemberDetailPage({
     label: new Date(m.recordedAt).toLocaleDateString(),
     weightKg: m.weightKg,
     bodyFatPct: m.bodyFatPct,
+    effectiveLeanMassKg: m.effectiveLeanMassKg,
+    restingHrBpm: m.restingHrBpm,
+  }));
+
+  const correlationChart = correlation.map((row) => ({
+    label: row.month.slice(5),
+    visitCount: row.visitCount,
+    avgWeightKg: row.avgWeightKg,
   }));
 
   return (
@@ -133,6 +195,35 @@ export function MemberDetailPage({
             Ends:{' '}
             {member.endDate ? new Date(member.endDate).toLocaleDateString() : '—'}
           </p>
+          <form onSubmit={saveProfile} className="mt-3 grid gap-2 border-t border-ink-800/10 pt-3">
+            <p className="font-medium">Body profile</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div>
+                <label className="label">Height (cm)</label>
+                <input
+                  className="input"
+                  value={heightCm}
+                  onChange={(e) => setHeightCm(e.target.value)}
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <label className="label">Sex</label>
+                <select
+                  className="input"
+                  value={sex}
+                  onChange={(e) => setSex(e.target.value as Sex | '')}
+                >
+                  <option value="">Select…</option>
+                  <option value="MALE">Male</option>
+                  <option value="FEMALE">Female</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" className="btn-primary w-fit">
+              Save body profile
+            </button>
+          </form>
         </section>
         <section className="card-panel">
           <h2 className="font-display text-xl font-semibold">Recent visits</h2>
@@ -154,32 +245,37 @@ export function MemberDetailPage({
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <LineMetricChart data={chartData} dataKey="weightKg" />
           <LineMetricChart data={chartData} dataKey="bodyFatPct" color="#c45c26" />
+          <LineMetricChart data={chartData} dataKey="effectiveLeanMassKg" color="#1f5f8b" />
+          <LineMetricChart data={chartData} dataKey="restingHrBpm" color="#7a3e2f" />
         </div>
-        <form onSubmit={addMetric} className="mt-4 grid gap-3 md:grid-cols-5">
-          <input
-            className="input"
-            placeholder="Weight kg"
-            value={metricForm.weightKg}
-            onChange={(e) => setMetricForm({ ...metricForm, weightKg: e.target.value })}
-          />
-          <input
-            className="input"
-            placeholder="Body fat %"
-            value={metricForm.bodyFatPct}
-            onChange={(e) => setMetricForm({ ...metricForm, bodyFatPct: e.target.value })}
-          />
-          <input
-            className="input"
-            placeholder="Waist cm"
-            value={metricForm.waistCm}
-            onChange={(e) => setMetricForm({ ...metricForm, waistCm: e.target.value })}
-          />
-          <input
-            className="input"
-            placeholder="Notes / photo URL"
-            value={metricForm.notes}
-            onChange={(e) => setMetricForm({ ...metricForm, notes: e.target.value })}
-          />
+
+        <div className="mt-6">
+          <h3 className="font-display text-lg font-semibold">Workouts vs weight</h3>
+          <ComposedMetricChart data={correlationChart} />
+        </div>
+
+        <form onSubmit={addMetric} className="mt-4 grid gap-3 md:grid-cols-3 lg:grid-cols-5">
+          {(
+            [
+              ['weightKg', 'Weight kg'],
+              ['bodyFatPct', 'Body fat %'],
+              ['leanMassKg', 'Lean mass kg'],
+              ['waistCm', 'Waist cm'],
+              ['hipsCm', 'Hips cm'],
+              ['thighsCm', 'Thighs cm'],
+              ['neckCm', 'Neck cm'],
+              ['restingHrBpm', 'Resting HR'],
+              ['notes', 'Notes / photo URL'],
+            ] as const
+          ).map(([key, placeholder]) => (
+            <input
+              key={key}
+              className="input"
+              placeholder={placeholder}
+              value={metricForm[key]}
+              onChange={(e) => setMetricForm({ ...metricForm, [key]: e.target.value })}
+            />
+          ))}
           <button type="submit" className="btn-primary">
             Log metrics
           </button>

@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -44,6 +45,26 @@ export class CreateBodyMetricDto {
   @IsNumber()
   @Min(0)
   armsCm?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  thighsCm?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  neckCm?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  restingHrBpm?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  leanMassKg?: number;
 
   @IsOptional()
   @IsString()

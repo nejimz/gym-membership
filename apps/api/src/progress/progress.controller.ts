@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ProgressService } from './progress.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -15,6 +23,21 @@ export class ProgressController {
   @Roles(Role.ADMIN, Role.STAFF, Role.MEMBER)
   create(@Body() dto: CreateBodyMetricDto, @CurrentUser() user: AuthUser) {
     return this.progress.create(dto, user);
+  }
+
+  @Get(':memberId/activity-correlation')
+  @Roles(Role.ADMIN, Role.STAFF, Role.MEMBER)
+  activityCorrelation(
+    @Param('memberId') memberId: string,
+    @Query('months') months: string | undefined,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const id = user.role === Role.MEMBER ? user.memberId! : memberId;
+    return this.progress.activityCorrelation(
+      id,
+      user,
+      months ? Number(months) : 6,
+    );
   }
 
   @Get(':memberId')

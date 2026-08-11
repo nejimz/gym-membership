@@ -99,6 +99,8 @@ export class MembersService {
             phone: dto.phone,
             dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
             emergencyContact: dto.emergencyContact,
+            heightCm: dto.heightCm,
+            sex: dto.sex,
             photoUrl: dto.photoUrl,
             planId: dto.planId,
             startDate,
@@ -127,10 +129,26 @@ export class MembersService {
       throw new ForbiddenException();
     }
     if (actor.role === Role.MEMBER) {
-      const { firstName, lastName, phone, emergencyContact, photoUrl } = dto;
+      const {
+        firstName,
+        lastName,
+        phone,
+        emergencyContact,
+        photoUrl,
+        heightCm,
+        sex,
+      } = dto;
       return this.prisma.memberProfile.update({
         where: { id },
-        data: { firstName, lastName, phone, emergencyContact, photoUrl },
+        data: {
+          firstName,
+          lastName,
+          phone,
+          emergencyContact,
+          photoUrl,
+          heightCm,
+          sex,
+        },
         include: { plan: true, user: { select: { email: true } } },
       });
     }

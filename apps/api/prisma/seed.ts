@@ -3,6 +3,7 @@ import {
   Role,
   MembershipStatus,
   NotificationType,
+  Sex,
   Prisma,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -219,6 +220,12 @@ async function main() {
       createdAt: startDate,
     });
 
+    const sex = i % 2 === 0 ? Sex.MALE : Sex.FEMALE;
+    const heightCm =
+      sex === Sex.MALE
+        ? Math.round((168 + (i % 20) + (i % 7) * 0.1) * 10) / 10
+        : Math.round((155 + (i % 18) + (i % 5) * 0.1) * 10) / 10;
+
     profiles.push({
       id: memberId,
       userId,
@@ -227,6 +234,8 @@ async function main() {
       phone: `555-${String(1000 + (i % 9000)).padStart(4, '0')}`,
       dateOfBirth,
       emergencyContact,
+      heightCm,
+      sex,
       status,
       planId: plan.id,
       startDate,
@@ -379,6 +388,12 @@ async function main() {
       const waistCm = Math.round((70 + (meta.index % 20) + drift * 0.4) * 10) / 10;
       const includeExtra = point % 2 === 0;
 
+      const neckCm = Math.round((34 + (meta.index % 8) + drift * 0.05) * 10) / 10;
+      const thighsCm = Math.round((50 + (meta.index % 12) + drift * 0.1) * 10) / 10;
+      const restingHrBpm = 58 + (meta.index % 18) - Math.round(point * 0.2);
+      const leanMassKg =
+        Math.round(weightKg * (1 - bodyFatPct / 100) * 10) / 10;
+
       metricBatch.push({
         id: randomUUID(),
         memberId: meta.memberId,
@@ -389,6 +404,10 @@ async function main() {
         chestCm: includeExtra ? 85 + (meta.index % 15) : null,
         hipsCm: includeExtra ? 90 + (meta.index % 12) : null,
         armsCm: includeExtra ? 28 + (meta.index % 8) : null,
+        thighsCm: includeExtra ? thighsCm : null,
+        neckCm,
+        restingHrBpm: includeExtra ? Math.max(48, restingHrBpm) : null,
+        leanMassKg: point % 3 === 0 ? leanMassKg : null,
         notes: point % 10 === 0 ? (losing ? 'Feeling lighter' : 'Building strength') : null,
       });
       point += 1;
