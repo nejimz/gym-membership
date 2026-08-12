@@ -6,7 +6,7 @@ import { StaffDashboardView } from '@/components/DashboardViews';
 export default function Page() {
   return (
     <AppShell role="STAFF">
-      <StaffDashboardView />
+      <StaffDashboardView basePath="/staff" />
     </AppShell>
   );
 }

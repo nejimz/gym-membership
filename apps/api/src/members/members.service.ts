@@ -214,16 +214,22 @@ export class MembersService {
       include: { user: { select: { email: true } } },
     });
     const today = new Date();
-    const in7 = new Date();
-    in7.setDate(today.getDate() + 7);
-    return members.filter((m) => {
-      if (!m.dateOfBirth) return false;
-      const dob = new Date(m.dateOfBirth);
-      const next = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
-      if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-        next.setFullYear(today.getFullYear() + 1);
-      }
-      return next >= today && next <= in7;
-    });
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const weekEnd = new Date(startOfToday);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    return members
+      .map((m) => {
+        if (!m.dateOfBirth) return null;
+        const dob = new Date(m.dateOfBirth);
+        const next = new Date(startOfToday.getFullYear(), dob.getMonth(), dob.getDate());
+        if (next < startOfToday) {
+          next.setFullYear(startOfToday.getFullYear() + 1);
+        }
+        if (next < startOfToday || next > weekEnd) return null;
+        return { ...m, nextBirthday: next };
+      })
+      .filter((m): m is NonNullable<typeof m> => m != null)
+      .sort((a, b) => a.nextBirthday.getTime() - b.nextBirthday.getTime())
+      .map(({ nextBirthday: _next, ...m }) => m);
   }
 }

@@ -1,9 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSettings } from '@/lib/settings';
 import { AttendanceBarChart } from '@/components/Charts';
+
+type BirthdayRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+};
 
 type StaffDash = {
   role: string;
@@ -18,7 +26,7 @@ type StaffDash = {
   };
   statusMix: { status: string; count: number }[];
   attendanceSeries: { date: string; count: number }[];
-  birthdays: { firstName: string; lastName: string }[];
+  birthdays: BirthdayRow[];
   suggestions: string[];
 };
 
@@ -40,7 +48,30 @@ type MemberDash = {
   suggestions: string[];
 };
 
-export function StaffDashboardView() {
+function nextBirthdayDate(dateOfBirth: string, now = new Date()) {
+  const dob = new Date(dateOfBirth);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const next = new Date(startOfToday.getFullYear(), dob.getMonth(), dob.getDate());
+  if (next < startOfToday) {
+    next.setFullYear(startOfToday.getFullYear() + 1);
+  }
+  return next;
+}
+
+function birthdayMeta(dateOfBirth: string, now = new Date()) {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const next = nextBirthdayDate(dateOfBirth, now);
+  const days = Math.round(
+    (next.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  let label: string;
+  if (days === 0) label = 'Today';
+  else if (days === 1) label = 'Tomorrow';
+  else label = next.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+  return { label, days };
+}
+
+export function StaffDashboardView({ basePath }: { basePath: '/admin' | '/staff' }) {
   const { formatMoney } = useSettings();
   const [data, setData] = useState<StaffDash | null>(null);
   const [error, setError] = useState('');
@@ -60,7 +91,7 @@ export function StaffDashboardView() {
     { label: 'Renewals (7d)', value: data.kpis.renewals7 },
     { label: 'Renewals (30d)', value: data.kpis.renewals30 },
     { label: 'Open sessions', value: data.kpis.openSessions },
-    { label: 'Birthdays (7d)', value: data.kpis.birthdaysThisWeek },
+    { label: 'Birthdays this week', value: data.kpis.birthdaysThisWeek },
     {
       label: 'Active plan value',
       value: formatMoney(data.kpis.revenueSnapshot),
@@ -99,10 +130,51 @@ export function StaffDashboardView() {
               </li>
             ))}
           </ul>
-          <h3 className="mt-6 text-sm font-semibold uppercase tracking-wide text-ink-800/60">
-            Status mix
-          </h3>
-          <ul className="mt-2 space-y-1 text-sm">
+        </section>
+        <section className="card-panel">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-xl font-semibold">Birthdays this week</h2>
+            <p className="text-xs font-semibold uppercase tracking-wide text-ink-800/55">
+              {data.birthdays.length} upcoming
+            </p>
+          </div>
+          {data.birthdays.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-800/70">No birthdays in the next 7 days</p>
+          ) : (
+            <ul className="mt-4 divide-y divide-ink-800/8 text-sm">
+              {data.birthdays.map((b) => {
+                const { label, days } = birthdayMeta(b.dateOfBirth);
+                const dateClass =
+                  days === 0
+                    ? 'text-moss-700 font-semibold'
+                    : days === 1
+                      ? 'text-ink-800/80'
+                      : 'text-ink-800/55';
+                return (
+                  <li key={b.id}>
+                    <Link
+                      href={`${basePath}/members/${b.id}`}
+                      className={[
+                        '-mx-1 flex items-center justify-between gap-4 rounded-md px-1 py-2.5 font-medium text-ink-800 transition-colors hover:bg-moss-500/10',
+                        days === 0 ? 'border-l-2 border-moss-600 pl-2' : '',
+                      ].join(' ')}
+                    >
+                      <span>
+                        {b.firstName} {b.lastName}
+                      </span>
+                      <span className={`w-[4.5rem] shrink-0 text-right font-normal ${dateClass}`}>
+                        {label}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        <section className="card-panel">
+          <h2 className="font-display text-xl font-semibold">Status mix</h2>
+          <ul className="mt-4 space-y-1 text-sm">
             {data.statusMix.map((s) => (
               <li key={s.status} className="flex justify-between">
                 <span>{s.status}</span>
@@ -110,16 +182,6 @@ export function StaffDashboardView() {
               </li>
             ))}
           </ul>
-          {data.birthdays.length > 0 ? (
-            <>
-              <h3 className="mt-6 text-sm font-semibold uppercase tracking-wide text-ink-800/60">
-                Birthdays this week
-              </h3>
-              <p className="mt-2 text-sm">
-                {data.birthdays.map((b) => `${b.firstName} ${b.lastName}`).join(', ')}
-              </p>
-            </>
-          ) : null}
         </section>
       </div>
     </div>

@@ -65,17 +65,23 @@ export class ReportsService {
       select: { id: true, firstName: true, lastName: true, dateOfBirth: true },
     });
     const today = new Date();
-    const weekEnd = new Date();
-    weekEnd.setDate(today.getDate() + 7);
-    const birthdaysThisWeek = members.filter((m) => {
-      if (!m.dateOfBirth) return false;
-      const dob = new Date(m.dateOfBirth);
-      const next = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
-      if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-        next.setFullYear(today.getFullYear() + 1);
-      }
-      return next >= today && next <= weekEnd;
-    });
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const weekEnd = new Date(startOfToday);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const birthdaysThisWeek = members
+      .map((m) => {
+        if (!m.dateOfBirth) return null;
+        const dob = new Date(m.dateOfBirth);
+        const next = new Date(startOfToday.getFullYear(), dob.getMonth(), dob.getDate());
+        if (next < startOfToday) {
+          next.setFullYear(startOfToday.getFullYear() + 1);
+        }
+        if (next < startOfToday || next > weekEnd) return null;
+        return { ...m, nextBirthday: next };
+      })
+      .filter((m): m is NonNullable<typeof m> => m != null)
+      .sort((a, b) => a.nextBirthday.getTime() - b.nextBirthday.getTime())
+      .map(({ nextBirthday: _next, ...m }) => m);
 
     const attendanceSeries = await this.attendanceByDay(14);
 

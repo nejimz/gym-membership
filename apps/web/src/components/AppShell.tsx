@@ -161,7 +161,7 @@ export function AppShell({
   );
 
   const navLinks = (
-    <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
+    <nav className="flex flex-col gap-1" aria-label="Main">
       {items.map((item) => {
         const active = isNavActive(pathname, item.href, roleHome);
         return (
@@ -226,13 +226,15 @@ export function AppShell({
       {/* Sidebar / drawer */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-ink-950 text-sand-50 transition-transform duration-200 ease-out md:static md:z-0 md:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex h-dvh w-60 flex-col bg-ink-950 text-sand-50 transition-transform duration-200 ease-out md:sticky md:top-0 md:z-0 md:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         )}
       >
-        <div className="hidden border-b border-white/10 px-4 py-5 md:block">{brand}</div>
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
+        <div className="hidden shrink-0 border-b border-white/10 px-4 py-5 md:block">{brand}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
           {navLinks}
+        </div>
+        <div className="shrink-0 border-t border-white/10 px-3 py-4">
           {logoutButton}
         </div>
       </aside>
