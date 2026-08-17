@@ -81,8 +81,8 @@ User, MembershipPlan, MemberProfile, Attendance, BodyMetric, Notification, Audit
 ## 8. API outline
 | Area | Endpoints |
 |------|-----------|
-| Auth | `POST /api/auth/login`, `refresh`, `logout`, `GET /me` |
-| Plans | `GET /api/plans` |
+| Auth | `POST /api/auth/login`, `refresh`, `logout`, `change-password`, `GET /me` |
+| Plans | `GET /api/plans` (active), `GET /all` (admin), `POST`, `PATCH /:id` (admin) |
 | Members | `GET/POST /api/members`, `GET/PATCH /:id`, renewals, birthdays |
 | Attendance | `POST check-in/out`, `GET today`, `GET member/:id` |
 | Progress | `POST /api/progress`, `GET /:memberId` |

@@ -190,21 +190,31 @@ export default function Page() {
         </form>
 
         <section className="card-panel grid gap-4 lg:grid-cols-2">
-          <div>
+          <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold">Weight</h2>
-            <LineMetricChart data={chartData} dataKey="weightKg" />
+            <LineMetricChart data={chartData} dataKey="weightKg" name="Weight (kg)" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold">Body fat %</h2>
-            <LineMetricChart data={chartData} dataKey="bodyFatPct" color="#c45c26" />
+            <LineMetricChart data={chartData} dataKey="bodyFatPct" name="Body fat %" color="#c45c26" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold">Lean mass (kg)</h2>
-            <LineMetricChart data={chartData} dataKey="effectiveLeanMassKg" color="#1f5f8b" />
+            <LineMetricChart
+              data={chartData}
+              dataKey="effectiveLeanMassKg"
+              name="Lean mass (kg)"
+              color="#1f5f8b"
+            />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-display text-lg font-semibold">Resting HR (bpm)</h2>
-            <LineMetricChart data={chartData} dataKey="restingHrBpm" color="#7a3e2f" />
+            <LineMetricChart
+              data={chartData}
+              dataKey="restingHrBpm"
+              name="Resting HR (bpm)"
+              color="#7a3e2f"
+            />
           </div>
         </section>
 

@@ -17,20 +17,31 @@ export function LineMetricChart({
   data,
   dataKey,
   color = '#2f7a4e',
+  name,
 }: {
   data: Record<string, unknown>[];
   dataKey: string;
   color?: string;
+  name?: string;
 }) {
+  const label = name ?? dataKey;
   return (
-    <div className="h-64 w-full" role="img" aria-label={`${dataKey} trend chart`}>
+    <div className="h-64 w-full min-w-0" role="img" aria-label={`${label} trend chart`}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#24332c22" />
           <XAxis dataKey="label" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} width={40} />
           <Tooltip />
-          <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
+          <Line
+            type="monotone"
+            dataKey={dataKey}
+            name={label}
+            stroke={color}
+            strokeWidth={2}
+            dot={{ r: 3, strokeWidth: 1 }}
+            connectNulls
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -71,7 +82,7 @@ export function ComposedMetricChart({
   }[];
 }) {
   return (
-    <div className="h-64 w-full" role="img" aria-label="Workouts versus weight chart">
+    <div className="h-64 w-full min-w-0" role="img" aria-label="Workouts versus weight chart">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#24332c22" />

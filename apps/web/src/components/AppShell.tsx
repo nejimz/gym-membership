@@ -15,6 +15,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: '/admin', label: 'Dashboard' },
     { href: '/admin/members', label: 'Members' },
     { href: '/admin/users', label: 'Users' },
+    { href: '/admin/plans', label: 'Plans' },
     { href: '/admin/attendance', label: 'Check-in' },
     { href: '/admin/reports', label: 'Reports' },
     { href: '/admin/notifications', label: 'Alerts' },
@@ -187,6 +188,23 @@ export function AppShell({
     </nav>
   );
 
+  const accountHref = `${roleHome}/account`;
+  const accountActive = pathname === accountHref;
+
+  const accountLink = (
+    <Link
+      href={accountHref}
+      className={clsx(
+        'rounded-md px-3 py-2.5 text-sm font-medium transition',
+        accountActive
+          ? 'bg-moss-600 text-white'
+          : 'text-sand-100/80 hover:bg-white/10 hover:text-white',
+      )}
+    >
+      Account
+    </Link>
+  );
+
   const logoutButton = (
     <button
       type="button"
@@ -234,7 +252,8 @@ export function AppShell({
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
           {navLinks}
         </div>
-        <div className="shrink-0 border-t border-white/10 px-3 py-4">
+        <div className="flex shrink-0 flex-col gap-1 border-t border-white/10 px-3 py-4">
+          {accountLink}
           {logoutButton}
         </div>
       </aside>

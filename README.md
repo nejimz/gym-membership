@@ -22,7 +22,7 @@ npm run db:seed
 npm run dev
 ```
 
-Postgres is published on **host port 5433** (avoids clashing with a local Postgres on 5432).
+Postgres is published on **host port 5434** (avoids clashing with a local Postgres on 5432 or other Compose stacks on 5433).
 
 - Web: http://localhost:3000  
 - API: http://localhost:3001/api  
