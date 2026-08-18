@@ -42,6 +42,9 @@ const emptyVisitorForm = {
   phone: '',
 };
 
+const LONG_STAY_MS = 3 * 60 * 60 * 1000;
+const STAY_TICK_MS = 30 * 1000;
+
 function startOfToday() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -50,6 +53,14 @@ function startOfToday() {
 
 function formatTime(value: string) {
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatStayDuration(ms: number) {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours < 1) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
 }
 
 function formatDate(value: string) {
@@ -88,6 +99,7 @@ export function AttendanceDesk() {
   const [hostQ, setHostQ] = useState('');
   const [hostResults, setHostResults] = useState<Member[]>([]);
   const [host, setHost] = useState<Member | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   async function refresh() {
     const t = await api<Attendance[]>('/attendance/today');
@@ -97,6 +109,11 @@ export function AttendanceDesk() {
   useEffect(() => {
     refresh().catch((e) => setError(e.message));
     searchRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), STAY_TICK_MS);
+    return () => window.clearInterval(tick);
   }, []);
 
   useEffect(() => {
@@ -503,35 +520,56 @@ export function AttendanceDesk() {
       <section className="card-panel">
         <h2 className="font-display text-xl font-semibold">Today on the floor</h2>
         <ul className="mt-3 space-y-2 text-sm">
-          {today.map((a) => (
-            <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-800/5 pb-2">
-              <span>
-                <TypeBadge type={a.type} /> {attendeeName(a)}
-                {a.hostedByMember ? (
-                  <span className="text-ink-800/55">
-                    {' '}
-                    · Guest of {a.hostedByMember.firstName} {a.hostedByMember.lastName}
-                  </span>
-                ) : null}
-              </span>
-              <span className="flex flex-wrap items-center gap-2">
+          {today.map((a) => {
+            const open = !a.checkOutAt;
+            const elapsedMs = now - new Date(a.checkInAt).getTime();
+            const longStay = open && elapsedMs >= LONG_STAY_MS;
+            return (
+              <li
+                key={a.id}
+                className={
+                  longStay
+                    ? 'flex flex-wrap items-center justify-between gap-2 rounded-lg bg-ember-500/10 px-2 py-2'
+                    : 'flex flex-wrap items-center justify-between gap-2 border-b border-ink-800/5 pb-2'
+                }
+              >
                 <span>
-                  In {formatTime(a.checkInAt)}
-                  {a.checkOutAt ? ` · Out ${formatTime(a.checkOutAt)}` : ' · Open'}
+                  <TypeBadge type={a.type} /> {attendeeName(a)}
+                  {a.hostedByMember ? (
+                    <span className="text-ink-800/55">
+                      {' '}
+                      · Guest of {a.hostedByMember.firstName} {a.hostedByMember.lastName}
+                    </span>
+                  ) : null}
                 </span>
-                {!a.checkOutAt ? (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={busyId === a.id}
-                    onClick={() => checkOutBy({ attendanceId: a.id })}
-                  >
-                    Time out
-                  </button>
-                ) : null}
-              </span>
-            </li>
-          ))}
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>
+                    In {formatTime(a.checkInAt)}
+                    {a.checkOutAt ? (
+                      ` · Out ${formatTime(a.checkOutAt)}`
+                    ) : (
+                      <>
+                        {' · '}
+                        <span className={longStay ? 'font-semibold text-ember-500' : undefined}>
+                          {formatStayDuration(elapsedMs)}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  {open ? (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={busyId === a.id}
+                      onClick={() => checkOutBy({ attendanceId: a.id })}
+                    >
+                      Time out
+                    </button>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
           {!today.length ? <li className="text-ink-800/60">No check-ins yet today.</li> : null}
         </ul>
       </section>
