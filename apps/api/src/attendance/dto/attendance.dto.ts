@@ -12,5 +12,9 @@ export class CheckOutDto {
 
   @IsOptional()
   @IsString()
+  visitorId?: string;
+
+  @IsOptional()
+  @IsString()
   attendanceId?: string;
 }

@@ -12,6 +12,7 @@ import { PlansModule } from './plans/plans.module';
 import { MailModule } from './mail/mail.module';
 import { SettingsModule } from './settings/settings.module';
 import { UsersModule } from './users/users.module';
+import { VisitorsModule } from './visitors/visitors.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module';
     PlansModule,
     MembersModule,
     UsersModule,
+    VisitorsModule,
     AttendanceModule,
     ProgressModule,
     ReportsModule,

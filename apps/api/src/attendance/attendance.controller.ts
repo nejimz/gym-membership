@@ -5,11 +5,18 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { CheckInDto, CheckOutDto } from './dto/attendance.dto';
+import { VisitorCheckInDto } from '../visitors/dto/visitor.dto';
 
 @Controller('attendance')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AttendanceController {
   constructor(private attendance: AttendanceService) {}
+
+  @Post('check-in/visitor')
+  @Roles(Role.ADMIN, Role.STAFF)
+  checkInVisitor(@Body() dto: VisitorCheckInDto, @CurrentUser() user: AuthUser) {
+    return this.attendance.checkInVisitor(dto, user);
+  }
 
   @Post('check-in')
   @Roles(Role.ADMIN, Role.STAFF, Role.MEMBER)
@@ -22,7 +29,7 @@ export class AttendanceController {
   @Post('check-out')
   @Roles(Role.ADMIN, Role.STAFF, Role.MEMBER)
   checkOut(@Body() dto: CheckOutDto, @CurrentUser() user: AuthUser) {
-    return this.attendance.checkOut(user, dto.memberId, dto.attendanceId);
+    return this.attendance.checkOut(user, dto.memberId, dto.attendanceId, dto.visitorId);
   }
 
   @Get('today')

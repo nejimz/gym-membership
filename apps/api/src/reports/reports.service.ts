@@ -362,13 +362,25 @@ export class ReportsService {
     const start = this.rangeStartInclusive(span);
     const rows = await this.prisma.attendance.findMany({
       where: { checkInAt: { gte: start } },
-      include: { member: true },
+      include: {
+        member: true,
+        visitor: true,
+        hostedByMember: true,
+      },
       orderBy: { checkInAt: 'desc' },
     });
     return this.toCsv(
-      ['member', 'checkInAt', 'checkOutAt'],
+      ['type', 'name', 'guestOf', 'checkInAt', 'checkOutAt'],
       rows.map((r) => [
-        `${r.member.firstName} ${r.member.lastName}`,
+        r.type,
+        r.member
+          ? `${r.member.firstName} ${r.member.lastName}`
+          : r.visitor
+            ? `${r.visitor.firstName} ${r.visitor.lastName}`
+            : '',
+        r.hostedByMember
+          ? `${r.hostedByMember.firstName} ${r.hostedByMember.lastName}`
+          : '',
         r.checkInAt.toISOString(),
         r.checkOutAt?.toISOString() ?? '',
       ]),
@@ -457,7 +469,7 @@ export class ReportsService {
     });
     return new Map(
       rows
-        .filter((r) => r._max.checkInAt)
+        .filter((r): r is typeof r & { memberId: string } => Boolean(r.memberId && r._max.checkInAt))
         .map((r) => [r.memberId, r._max.checkInAt as Date]),
     );
   }

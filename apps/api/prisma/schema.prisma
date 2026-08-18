@@ -31,6 +31,11 @@ enum Sex {
   FEMALE
 }
 
+enum AttendanceType {
+  MEMBER
+  VISITOR
+}
+
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
@@ -75,7 +80,8 @@ model MemberProfile {
   endDate          DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
-  attendances      Attendance[]
+  attendances      Attendance[] @relation("MemberAttendance")
+  hostedGuests     Attendance[] @relation("GuestHost")
   bodyMetrics      BodyMetric[]
 
   @@index([status])
@@ -83,17 +89,38 @@ model MemberProfile {
   @@index([lastName, firstName])
 }
 
+model Visitor {
+  id          String       @id @default(cuid())
+  firstName   String
+  lastName    String
+  phone       String?
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attendances Attendance[]
+
+  @@index([lastName, firstName])
+  @@index([phone])
+}
+
 model Attendance {
-  id           String    @id @default(cuid())
-  memberId     String
-  member       MemberProfile @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  checkInAt    DateTime  @default(now())
-  checkOutAt   DateTime?
-  recordedById String?
-  recordedBy   User?     @relation("AttendanceRecorder", fields: [recordedById], references: [id])
-  createdAt    DateTime  @default(now())
+  id               String         @id @default(cuid())
+  type             AttendanceType @default(MEMBER)
+  memberId         String?
+  member           MemberProfile? @relation("MemberAttendance", fields: [memberId], references: [id], onDelete: Cascade)
+  visitorId        String?
+  visitor          Visitor?       @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  hostedByMemberId String?
+  hostedByMember   MemberProfile? @relation("GuestHost", fields: [hostedByMemberId], references: [id], onDelete: SetNull)
+  checkInAt        DateTime       @default(now())
+  checkOutAt       DateTime?
+  recordedById     String?
+  recordedBy       User?          @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+  createdAt        DateTime       @default(now())
 
   @@index([memberId, checkInAt])
+  @@index([visitorId, checkInAt])
+  @@index([hostedByMemberId])
   @@index([checkInAt])
 }
 
