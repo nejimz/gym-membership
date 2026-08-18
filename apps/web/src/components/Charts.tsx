@@ -50,22 +50,53 @@ export function LineMetricChart({
 
 export function AttendanceBarChart({
   data,
+  ariaLabel = 'Attendance by day chart',
 }: {
   data: { date: string; count: number }[];
+  ariaLabel?: string;
 }) {
   const mapped = data.map((d) => ({
     ...d,
     label: d.date.slice(5),
   }));
+  const interval = mapped.length > 45 ? 6 : mapped.length > 20 ? 2 : 0;
   return (
-    <div className="h-64 w-full" role="img" aria-label="Attendance by day chart">
+    <div className="h-64 w-full" role="img" aria-label={ariaLabel}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={mapped}>
           <CartesianGrid strokeDasharray="3 3" stroke="#24332c22" />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={interval} />
           <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={32} />
           <Tooltip />
           <Bar dataKey="count" fill="#2f7a4e" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function LabeledBarChart({
+  data,
+  ariaLabel,
+  name = 'Count',
+  color = '#2f7a4e',
+  interval = 0,
+}: {
+  data: { label: string; count: number }[];
+  ariaLabel: string;
+  name?: string;
+  color?: string;
+  interval?: number;
+}) {
+  return (
+    <div className="h-64 w-full min-w-0" role="img" aria-label={ariaLabel}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#24332c22" />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={interval} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 12 }} width={32} />
+          <Tooltip />
+          <Bar dataKey="count" name={name} fill={color} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -2,36 +2,50 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSettings } from '@/lib/settings';
 import { api, Role } from '@/lib/api';
 import clsx from 'clsx';
 
-type NavItem = { href: string; label: string };
+type NavIcon =
+  | 'dashboard'
+  | 'members'
+  | 'users'
+  | 'plans'
+  | 'checkin'
+  | 'reports'
+  | 'alerts'
+  | 'settings'
+  | 'progress'
+  | 'visits'
+  | 'account'
+  | 'logout';
+
+type NavItem = { href: string; label: string; icon: NavIcon };
 
 const NAV: Record<Role, NavItem[]> = {
   ADMIN: [
-    { href: '/admin', label: 'Dashboard' },
-    { href: '/admin/members', label: 'Members' },
-    { href: '/admin/users', label: 'Users' },
-    { href: '/admin/plans', label: 'Plans' },
-    { href: '/admin/attendance', label: 'Check-in' },
-    { href: '/admin/reports', label: 'Reports' },
-    { href: '/admin/notifications', label: 'Alerts' },
-    { href: '/admin/settings', label: 'Settings' },
+    { href: '/admin', label: 'Dashboard', icon: 'dashboard' },
+    { href: '/admin/members', label: 'Members', icon: 'members' },
+    { href: '/admin/users', label: 'Users', icon: 'users' },
+    { href: '/admin/plans', label: 'Plans', icon: 'plans' },
+    { href: '/admin/attendance', label: 'Check-in', icon: 'checkin' },
+    { href: '/admin/reports', label: 'Reports', icon: 'reports' },
+    { href: '/admin/notifications', label: 'Alerts', icon: 'alerts' },
+    { href: '/admin/settings', label: 'Settings', icon: 'settings' },
   ],
   STAFF: [
-    { href: '/staff', label: 'Dashboard' },
-    { href: '/staff/members', label: 'Members' },
-    { href: '/staff/attendance', label: 'Check-in' },
-    { href: '/staff/notifications', label: 'Alerts' },
+    { href: '/staff', label: 'Dashboard', icon: 'dashboard' },
+    { href: '/staff/members', label: 'Members', icon: 'members' },
+    { href: '/staff/attendance', label: 'Check-in', icon: 'checkin' },
+    { href: '/staff/notifications', label: 'Alerts', icon: 'alerts' },
   ],
   MEMBER: [
-    { href: '/member', label: 'Dashboard' },
-    { href: '/member/progress', label: 'Progress' },
-    { href: '/member/attendance', label: 'Visits' },
-    { href: '/member/notifications', label: 'Alerts' },
+    { href: '/member', label: 'Dashboard', icon: 'dashboard' },
+    { href: '/member/progress', label: 'Progress', icon: 'progress' },
+    { href: '/member/attendance', label: 'Visits', icon: 'visits' },
+    { href: '/member/notifications', label: 'Alerts', icon: 'alerts' },
   ],
 };
 
@@ -44,6 +58,107 @@ const ROLE_HOME: Record<Role, string> = {
 function isNavActive(pathname: string, href: string, roleHome: string) {
   if (href === roleHome) return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+const ICON_PATHS: Record<NavIcon, ReactNode> = {
+  dashboard: (
+    <>
+      <rect x="3" y="3" width="7" height="9" rx="1" />
+      <rect x="14" y="3" width="7" height="5" rx="1" />
+      <rect x="14" y="12" width="7" height="9" rx="1" />
+      <rect x="3" y="16" width="7" height="5" rx="1" />
+    </>
+  ),
+  members: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M20 21a8 8 0 0 0-16 0" />
+    </>
+  ),
+  plans: (
+    <>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </>
+  ),
+  checkin: (
+    <>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <polyline points="10 17 15 12 10 7" />
+      <line x1="15" y1="12" x2="3" y2="12" />
+    </>
+  ),
+  reports: (
+    <>
+      <path d="M3 3v18h18" />
+      <rect x="7" y="10" width="3" height="8" rx="0.5" />
+      <rect x="12" y="6" width="3" height="12" rx="0.5" />
+      <rect x="17" y="13" width="3" height="5" rx="0.5" />
+    </>
+  ),
+  alerts: (
+    <>
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+    </>
+  ),
+  progress: (
+    <>
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+      <polyline points="16 7 22 7 22 13" />
+    </>
+  ),
+  visits: (
+    <>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </>
+  ),
+  account: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M7 20.662a8 8 0 0 1 10 0" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </>
+  ),
+};
+
+function Glyph({ name }: { name: NavIcon }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {ICON_PATHS[name]}
+    </svg>
+  );
 }
 
 function MenuIcon({ open }: { open: boolean }) {
@@ -170,13 +285,16 @@ export function AppShell({
             key={item.href}
             href={item.href}
             className={clsx(
-              'flex items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium transition',
+              'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition',
               active
                 ? 'bg-moss-600 text-white'
                 : 'text-sand-100/80 hover:bg-white/10 hover:text-white',
             )}
           >
-            <span>{item.label}</span>
+            <span className="shrink-0 opacity-90">
+              <Glyph name={item.icon} />
+            </span>
+            <span className="min-w-0 flex-1">{item.label}</span>
             {item.label === 'Alerts' && unread > 0 ? (
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ember-500 px-1 text-[11px] font-bold text-white">
                 {unread}
@@ -195,23 +313,29 @@ export function AppShell({
     <Link
       href={accountHref}
       className={clsx(
-        'rounded-md px-3 py-2.5 text-sm font-medium transition',
+        'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition',
         accountActive
           ? 'bg-moss-600 text-white'
           : 'text-sand-100/80 hover:bg-white/10 hover:text-white',
       )}
     >
-      Account
+      <span className="shrink-0 opacity-90">
+        <Glyph name="account" />
+      </span>
+      <span>Account</span>
     </Link>
   );
 
   const logoutButton = (
     <button
       type="button"
-      className="rounded-md px-3 py-2.5 text-left text-sm font-medium text-sand-100/80 transition hover:bg-white/10 hover:text-white"
+      className="flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-ember-500 transition hover:bg-ember-500/15 hover:text-ember-500"
       onClick={onLogout}
     >
-      Log out
+      <span className="shrink-0">
+        <Glyph name="logout" />
+      </span>
+      <span>Log out</span>
     </button>
   );
 

@@ -3,6 +3,19 @@ import { MembershipStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/current-user.decorator';
 
+type ReportMemberRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  status: MembershipStatus;
+  planName: string | null;
+  endDate: Date | null;
+  lastVisitAt: Date | null;
+};
+
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
@@ -174,42 +187,332 @@ export class ReportsService {
   }
 
   async attendanceByDay(days = 30) {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (days - 1));
+    const span = this.clampDays(days);
+    const start = this.rangeStartInclusive(span);
     const rows = await this.prisma.attendance.findMany({
       where: { checkInAt: { gte: start } },
       select: { checkInAt: true },
     });
     const map = new Map<string, number>();
-    for (let i = 0; i < days; i++) {
+    for (let i = 0; i < span; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      map.set(d.toISOString().slice(0, 10), 0);
+      map.set(this.localDateKey(d), 0);
     }
     for (const r of rows) {
-      const key = new Date(r.checkInAt).toISOString().slice(0, 10);
-      map.set(key, (map.get(key) || 0) + 1);
+      const key = this.localDateKey(r.checkInAt);
+      if (map.has(key)) {
+        map.set(key, (map.get(key) || 0) + 1);
+      }
     }
     return [...map.entries()].map(([date, count]) => ({ date, count }));
   }
 
+  async membershipSummary(days = 30) {
+    const span = this.clampDays(days);
+    const now = new Date();
+    const until = new Date(now);
+    until.setDate(until.getDate() + span);
+    const signupStart = this.rangeStartInclusive(span);
+
+    const [activeMembers, expiringRaw, expiredRaw, newMemberRows] = await Promise.all([
+      this.prisma.memberProfile.findMany({
+        where: { status: MembershipStatus.ACTIVE },
+        include: { plan: true },
+      }),
+      this.prisma.memberProfile.findMany({
+        where: {
+          status: MembershipStatus.ACTIVE,
+          endDate: { gte: now, lte: until },
+        },
+        include: { plan: true, user: { select: { email: true } } },
+        orderBy: { endDate: 'asc' },
+      }),
+      this.prisma.memberProfile.findMany({
+        where: {
+          OR: [
+            { status: MembershipStatus.EXPIRED },
+            { endDate: { lt: now } },
+          ],
+        },
+        include: { plan: true, user: { select: { email: true } } },
+        orderBy: { endDate: 'asc' },
+      }),
+      this.prisma.memberProfile.findMany({
+        where: { createdAt: { gte: signupStart } },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    const mixMap = new Map<
+      string,
+      { planId: string | null; planName: string; count: number; contractedValue: number }
+    >();
+    for (const m of activeMembers) {
+      const key = m.planId ?? 'none';
+      const cur = mixMap.get(key) ?? {
+        planId: m.planId,
+        planName: m.plan?.name ?? 'No plan',
+        count: 0,
+        contractedValue: 0,
+      };
+      cur.count += 1;
+      cur.contractedValue += Number(m.plan?.price ?? 0);
+      mixMap.set(key, cur);
+    }
+    const planMix = [...mixMap.values()]
+      .map((row) => ({
+        ...row,
+        contractedValue: Math.round(row.contractedValue * 100) / 100,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const newMembersMap = new Map<string, number>();
+    for (let i = 0; i < span; i++) {
+      const d = new Date(signupStart);
+      d.setDate(signupStart.getDate() + i);
+      newMembersMap.set(this.localDateKey(d), 0);
+    }
+    for (const row of newMemberRows) {
+      const key = this.localDateKey(row.createdAt);
+      if (newMembersMap.has(key)) {
+        newMembersMap.set(key, (newMembersMap.get(key) || 0) + 1);
+      }
+    }
+
+    const followUpIds = [...new Set([...expiringRaw, ...expiredRaw].map((m) => m.id))];
+    const lastVisits = await this.lastVisitMap(followUpIds);
+
+    return {
+      days: span,
+      planMix,
+      newMembers: [...newMembersMap.entries()].map(([date, count]) => ({ date, count })),
+      expiring: this.toMemberRows(expiringRaw, lastVisits),
+      expired: this.toMemberRows(expiredRaw, lastVisits),
+    };
+  }
+
+  async peakHours(days = 30) {
+    const span = this.clampDays(days);
+    const start = this.rangeStartInclusive(span);
+    const rows = await this.prisma.attendance.findMany({
+      where: { checkInAt: { gte: start } },
+      select: { checkInAt: true, checkOutAt: true },
+    });
+
+    const hourCounts = Array.from({ length: 24 }, () => 0);
+    const weekdayCounts = Array.from({ length: 7 }, () => 0);
+    let durationSum = 0;
+    let closedSessions = 0;
+
+    for (const row of rows) {
+      hourCounts[row.checkInAt.getHours()] += 1;
+      weekdayCounts[this.mondayBasedWeekday(row.checkInAt)] += 1;
+      if (row.checkOutAt && row.checkOutAt > row.checkInAt) {
+        durationSum += row.checkOutAt.getTime() - row.checkInAt.getTime();
+        closedSessions += 1;
+      }
+    }
+
+    const avgSessionMinutes =
+      closedSessions > 0 ? Math.round(durationSum / closedSessions / 60000) : null;
+
+    return {
+      days: span,
+      byHour: hourCounts.map((count, hour) => ({
+        hour,
+        label: this.hourLabel(hour),
+        count,
+      })),
+      byWeekday: weekdayCounts.map((count, index) => ({
+        weekday: index,
+        label: WEEKDAY_LABELS[index],
+        count,
+      })),
+      avgSessionMinutes,
+      closedSessions,
+    };
+  }
+
+  async inactiveMembers(days = 30) {
+    const span = this.clampDays(days);
+    const cutoff = this.rangeStartInclusive(span);
+
+    const active = await this.prisma.memberProfile.findMany({
+      where: { status: MembershipStatus.ACTIVE },
+      include: { plan: true, user: { select: { email: true } } },
+    });
+    const lastVisits = await this.lastVisitMap(active.map((m) => m.id));
+    const members = this.toMemberRows(active, lastVisits)
+      .filter((m) => !m.lastVisitAt || m.lastVisitAt < cutoff)
+      .sort((a, b) => {
+        if (!a.lastVisitAt && !b.lastVisitAt) {
+          return a.lastName.localeCompare(b.lastName);
+        }
+        if (!a.lastVisitAt) return -1;
+        if (!b.lastVisitAt) return 1;
+        return a.lastVisitAt.getTime() - b.lastVisitAt.getTime();
+      });
+
+    return { days: span, members };
+  }
+
   async exportAttendanceCsv(days = 30) {
-    const start = new Date();
-    start.setDate(start.getDate() - days);
+    const span = this.clampDays(days);
+    const start = this.rangeStartInclusive(span);
     const rows = await this.prisma.attendance.findMany({
       where: { checkInAt: { gte: start } },
       include: { member: true },
       orderBy: { checkInAt: 'desc' },
     });
-    const header = 'member,checkInAt,checkOutAt\n';
-    const body = rows
-      .map((r) => {
-        const name = `${r.member.firstName} ${r.member.lastName}`;
-        return `"${name}",${r.checkInAt.toISOString()},${r.checkOutAt?.toISOString() ?? ''}`;
-      })
-      .join('\n');
-    return header + body;
+    return this.toCsv(
+      ['member', 'checkInAt', 'checkOutAt'],
+      rows.map((r) => [
+        `${r.member.firstName} ${r.member.lastName}`,
+        r.checkInAt.toISOString(),
+        r.checkOutAt?.toISOString() ?? '',
+      ]),
+    );
+  }
+
+  async exportMembersCsv() {
+    const members = await this.prisma.memberProfile.findMany({
+      include: { plan: true, user: { select: { email: true } } },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+    const lastVisits = await this.lastVisitMap(members.map((m) => m.id));
+    return this.toCsv(
+      ['name', 'email', 'status', 'plan', 'startDate', 'endDate', 'lastVisit'],
+      members.map((m) => [
+        `${m.firstName} ${m.lastName}`,
+        m.user.email,
+        m.status,
+        m.plan?.name ?? '',
+        m.startDate?.toISOString() ?? '',
+        m.endDate?.toISOString() ?? '',
+        lastVisits.get(m.id)?.toISOString() ?? '',
+      ]),
+    );
+  }
+
+  async exportRenewalsCsv(days = 30) {
+    const summary = await this.membershipSummary(days);
+    return this.toCsv(
+      ['name', 'email', 'status', 'plan', 'endDate', 'lastVisit', 'bucket'],
+      [
+        ...summary.expiring.map((m) => this.memberCsvRow(m, 'expiring')),
+        ...summary.expired.map((m) => this.memberCsvRow(m, 'expired')),
+      ],
+    );
+  }
+
+  async exportInactiveCsv(days = 30) {
+    const { members } = await this.inactiveMembers(days);
+    return this.toCsv(
+      ['name', 'email', 'status', 'plan', 'endDate', 'lastVisit'],
+      members.map((m) => this.memberCsvRow(m)),
+    );
+  }
+
+  private clampDays(days = 30) {
+    if (!Number.isFinite(days) || days < 1) return 30;
+    return Math.min(Math.floor(days), 365);
+  }
+
+  private startOfToday() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  private rangeStartInclusive(days: number) {
+    const start = this.startOfToday();
+    start.setDate(start.getDate() - (days - 1));
+    return start;
+  }
+
+  private localDateKey(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private mondayBasedWeekday(d: Date) {
+    return (d.getDay() + 6) % 7;
+  }
+
+  private hourLabel(hour: number) {
+    const period = hour < 12 ? 'am' : 'pm';
+    const h12 = hour % 12 === 0 ? 12 : hour % 12;
+    return `${h12}${period}`;
+  }
+
+  private async lastVisitMap(memberIds: string[]) {
+    if (!memberIds.length) return new Map<string, Date>();
+    const rows = await this.prisma.attendance.groupBy({
+      by: ['memberId'],
+      where: { memberId: { in: memberIds } },
+      _max: { checkInAt: true },
+    });
+    return new Map(
+      rows
+        .filter((r) => r._max.checkInAt)
+        .map((r) => [r.memberId, r._max.checkInAt as Date]),
+    );
+  }
+
+  private toMemberRows(
+    members: Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      status: MembershipStatus;
+      endDate: Date | null;
+      plan: { name: string } | null;
+      user: { email: string };
+    }>,
+    lastVisits: Map<string, Date>,
+  ): ReportMemberRow[] {
+    return members.map((m) => ({
+      id: m.id,
+      firstName: m.firstName,
+      lastName: m.lastName,
+      email: m.user.email,
+      status: m.status,
+      planName: m.plan?.name ?? null,
+      endDate: m.endDate,
+      lastVisitAt: lastVisits.get(m.id) ?? null,
+    }));
+  }
+
+  private memberCsvRow(m: ReportMemberRow, bucket?: string) {
+    const row: Array<string | number | null | undefined> = [
+      `${m.firstName} ${m.lastName}`,
+      m.email,
+      m.status,
+      m.planName ?? '',
+      m.endDate?.toISOString() ?? '',
+      m.lastVisitAt?.toISOString() ?? '',
+    ];
+    if (bucket) row.push(bucket);
+    return row;
+  }
+
+  private csvCell(value: string | number | null | undefined) {
+    const s = value == null ? '' : String(value);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
+  private toCsv(
+    headers: string[],
+    rows: Array<Array<string | number | null | undefined>>,
+  ) {
+    return [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => this.csvCell(cell)).join(',')),
+    ].join('\n');
   }
 
   private calcStreak(checkIns: Date[]) {

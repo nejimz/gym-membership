@@ -2,12 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { MembershipStatus, Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/current-user.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 const userSelect = {
   id: true,
@@ -144,6 +146,91 @@ export class UsersService {
         entityType: 'User',
         entityId: user.id,
         meta: { role: dto.role },
+      },
+    });
+
+    return user;
+  }
+
+  async update(id: string, dto: UpdateUserDto, actor: AuthUser) {
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      include: { member: true },
+    });
+    if (!existing) throw new NotFoundException('User not found');
+
+    if (dto.role !== undefined && dto.role !== existing.role && actor.id === id) {
+      throw new BadRequestException('You cannot change your own role');
+    }
+
+    let email = existing.email;
+    if (dto.email !== undefined) {
+      email = dto.email.toLowerCase();
+      if (email !== existing.email) {
+        const taken = await this.prisma.user.findUnique({ where: { email } });
+        if (taken) throw new ConflictException('Email already in use');
+      }
+    }
+
+    const nextRole = dto.role ?? existing.role;
+    const needsProfile = nextRole === Role.MEMBER && !existing.member;
+    if (needsProfile && (!dto.firstName?.trim() || !dto.lastName?.trim())) {
+      throw new BadRequestException(
+        'firstName and lastName are required for MEMBER accounts',
+      );
+    }
+
+    const passwordHash = dto.password?.trim()
+      ? await bcrypt.hash(dto.password, 10)
+      : undefined;
+
+    const memberUpdate =
+      existing.member && (dto.firstName !== undefined || dto.lastName !== undefined)
+        ? {
+            member: {
+              update: {
+                ...(dto.firstName !== undefined
+                  ? { firstName: dto.firstName.trim() }
+                  : {}),
+                ...(dto.lastName !== undefined
+                  ? { lastName: dto.lastName.trim() }
+                  : {}),
+              },
+            },
+          }
+        : {};
+
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: {
+        email,
+        ...(dto.role !== undefined ? { role: dto.role } : {}),
+        ...(passwordHash ? { passwordHash } : {}),
+        ...(needsProfile
+          ? {
+              member: {
+                create: {
+                  firstName: dto.firstName!.trim(),
+                  lastName: dto.lastName!.trim(),
+                  status: MembershipStatus.ACTIVE,
+                },
+              },
+            }
+          : memberUpdate),
+      },
+      select: userSelect,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorId: actor.id,
+        action: 'USER_UPDATE',
+        entityType: 'User',
+        entityId: user.id,
+        meta: {
+          role: user.role,
+          ...(passwordHash ? { passwordReset: true } : {}),
+        },
       },
     });
 

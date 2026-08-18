@@ -58,6 +58,24 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   return (await res.text()) as T;
 }
 
+export async function downloadApiFile(path: string, filename: string) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const res = await fetch(`${API_URL}/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, 'Export failed');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function dashboardPath(role: Role) {
   if (role === 'ADMIN') return '/admin';
   if (role === 'STAFF') return '/staff';

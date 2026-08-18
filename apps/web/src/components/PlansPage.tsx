@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSettings } from '@/lib/settings';
+import { ConfirmDialog, FlashBanner } from '@/components/Feedback';
 
 type Plan = {
   id: string;
@@ -21,15 +22,108 @@ const emptyForm = {
   active: true,
 };
 
+const CREATE_BUSY = '__create__';
+
+function PencilIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function BanIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m6.3 6.3 11.4 11.4" />
+    </svg>
+  );
+}
+
+function RecycleIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+    </svg>
+  );
+}
+
+function IconAction({
+  label,
+  tooltip,
+  className,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  tooltip: string;
+  className: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`group relative inline-flex items-center justify-center rounded-md p-1.5 disabled:opacity-50 ${className}`}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute right-full top-1/2 z-10 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-ink-900 px-2 py-1 text-xs font-medium text-sand-50 opacity-0 shadow-soft transition group-hover:opacity-100 group-focus-visible:opacity-100 group-disabled:hidden"
+      >
+        {tooltip}
+      </span>
+    </button>
+  );
+}
+
 export function PlansPage() {
   const { formatMoney } = useSettings();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busyPlanId, setBusyPlanId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [pendingDeactivate, setPendingDeactivate] = useState<Plan | null>(null);
+
+  const formBusy = busyPlanId === (editingId ?? CREATE_BUSY);
 
   async function load() {
     const data = await api<Plan[]>('/plans/all');
@@ -70,7 +164,7 @@ export function PlansPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
+    setBusyPlanId(editingId ?? CREATE_BUSY);
     setError('');
     setSaved('');
     try {
@@ -99,14 +193,15 @@ export function PlansPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
-      setBusy(false);
+      setBusyPlanId(null);
     }
   }
 
   async function setActive(plan: Plan, active: boolean) {
-    setBusy(true);
+    setBusyPlanId(plan.id);
     setError('');
     setSaved('');
+    setPendingDeactivate(null);
     try {
       await api(`/plans/${plan.id}`, {
         method: 'PATCH',
@@ -117,7 +212,7 @@ export function PlansPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed');
     } finally {
-      setBusy(false);
+      setBusyPlanId(null);
     }
   }
 
@@ -140,8 +235,12 @@ export function PlansPage() {
         </button>
       </div>
 
-      {error ? <p className="text-sm text-ember-500">{error}</p> : null}
-      {saved ? <p className="text-sm text-moss-700">{saved}</p> : null}
+      {error ? (
+        <FlashBanner kind="error" message={error} onDismiss={() => setError('')} />
+      ) : null}
+      {saved ? (
+        <FlashBanner kind="success" message={saved} onDismiss={() => setSaved('')} />
+      ) : null}
 
       {showForm ? (
         <form onSubmit={onSubmit} className="card-panel grid gap-3 md:grid-cols-2">
@@ -217,10 +316,10 @@ export function PlansPage() {
             </label>
           </div>
           <div className="flex flex-wrap gap-2 md:col-span-2">
-            <button type="submit" className="btn-primary" disabled={busy}>
+            <button type="submit" className="btn-primary" disabled={formBusy}>
               {editingId ? 'Save changes' : 'Create plan'}
             </button>
-            <button type="button" className="btn-ghost" onClick={closeForm} disabled={busy}>
+            <button type="button" className="btn-ghost" onClick={closeForm} disabled={formBusy}>
               Cancel
             </button>
           </div>
@@ -240,34 +339,52 @@ export function PlansPage() {
             </tr>
           </thead>
           <tbody>
-            {plans.map((plan) => (
-              <tr key={plan.id} className="border-b border-ink-800/5">
-                <td className="px-4 py-3 font-medium">{plan.name}</td>
-                <td className="px-4 py-3">{plan.durationDays} days</td>
-                <td className="px-4 py-3">{formatMoney(plan.price)}</td>
-                <td className="px-4 py-3 text-ink-800/80">{plan.description || '—'}</td>
-                <td className="px-4 py-3">{plan.active ? 'Active' : 'Inactive'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      className="btn-ghost px-2 py-1 text-sm"
-                      onClick={() => openEdit(plan)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost px-2 py-1 text-sm"
-                      disabled={busy}
-                      onClick={() => setActive(plan, !plan.active)}
-                    >
-                      {plan.active ? 'Deactivate' : 'Reactivate'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {plans.map((plan) => {
+              const rowBusy = busyPlanId === plan.id;
+              return (
+                <tr key={plan.id} className="border-b border-ink-800/5">
+                  <td className="px-4 py-3 font-medium">{plan.name}</td>
+                  <td className="px-4 py-3">{plan.durationDays} days</td>
+                  <td className="px-4 py-3">{formatMoney(plan.price)}</td>
+                  <td className="px-4 py-3 text-ink-800/80">{plan.description || '—'}</td>
+                  <td className="px-4 py-3">{plan.active ? 'Active' : 'Inactive'}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <IconAction
+                        label={`Edit ${plan.name}`}
+                        tooltip="Edit"
+                        className="text-moss-700 hover:bg-moss-700/10"
+                        disabled={rowBusy}
+                        onClick={() => openEdit(plan)}
+                      >
+                        <PencilIcon />
+                      </IconAction>
+                      {plan.active ? (
+                        <IconAction
+                          label={`Deactivate ${plan.name}`}
+                          tooltip="Deactivate"
+                          className="text-ember-500 hover:bg-ember-500/10"
+                          disabled={rowBusy}
+                          onClick={() => setPendingDeactivate(plan)}
+                        >
+                          <BanIcon />
+                        </IconAction>
+                      ) : (
+                        <IconAction
+                          label={`Reactivate ${plan.name}`}
+                          tooltip="Reactivate"
+                          className="text-moss-700 hover:bg-moss-700/10"
+                          disabled={rowBusy}
+                          onClick={() => void setActive(plan, true)}
+                        >
+                          <RecycleIcon />
+                        </IconAction>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
             {plans.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-ink-800/60" colSpan={6}>
@@ -278,6 +395,16 @@ export function PlansPage() {
           </tbody>
         </table>
       </div>
+
+      {pendingDeactivate ? (
+        <ConfirmDialog
+          title={`Deactivate ${pendingDeactivate.name}?`}
+          body="Existing members keep this plan. It will be hidden when assigning a plan to a new member."
+          confirmLabel="Deactivate"
+          onCancel={() => setPendingDeactivate(null)}
+          onConfirm={() => void setActive(pendingDeactivate, false)}
+        />
+      ) : null}
     </div>
   );
 }
