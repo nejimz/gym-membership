@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { ComposedMetricChart, LineMetricChart } from '@/components/Charts';
 import { ConfirmDialog, FlashBanner } from '@/components/Feedback';
+import { MemberPhoto } from '@/components/MemberPhoto';
 
 type Sex = 'MALE' | 'FEMALE';
 type MembershipStatus = 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
@@ -23,6 +24,7 @@ type Member = {
   sex?: Sex | null;
   planId?: string | null;
   plan?: { name: string } | null;
+  photoUrl?: string | null;
   user: { email: string };
   attendances: { checkInAt: string; checkOutAt?: string }[];
 };
@@ -307,13 +309,20 @@ export function MemberDetailPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="page-title">
-            {member.firstName} {member.lastName}
-          </h1>
-          <p className="mt-1 text-ink-800/70">
-            {member.user.email} · {member.plan?.name ?? 'No plan'} · {member.status}
-          </p>
+        <div className="flex min-w-0 items-start gap-4">
+          <MemberPhoto
+            url={member.photoUrl}
+            name={`${member.firstName} ${member.lastName}`}
+            size="md"
+          />
+          <div className="min-w-0">
+            <h1 className="page-title">
+              {member.firstName} {member.lastName}
+            </h1>
+            <p className="mt-1 text-ink-800/70">
+              {member.user.email} · {member.plan?.name ?? 'No plan'} · {member.status}
+            </p>
+          </div>
         </div>
         {canEditPlan ? (
           <button

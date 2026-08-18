@@ -169,6 +169,18 @@ export class ReportsService {
       daysUntilRenewal,
       metrics,
     );
+    const closedSessions = recentAttendance.filter((a) => a.checkOutAt);
+    const avgSessionMinutes = closedSessions.length
+      ? Math.round(
+          closedSessions.reduce(
+            (sum, a) =>
+              sum + (a.checkOutAt!.getTime() - a.checkInAt.getTime()),
+            0,
+          ) /
+            closedSessions.length /
+            60_000,
+        )
+      : null;
 
     return {
       role: 'MEMBER',
@@ -179,9 +191,19 @@ export class ReportsService {
         daysUntilRenewal,
         checkedIn: Boolean(open),
         openSession: open,
+        avgSessionMinutes,
       },
       latestMetrics: metrics[0] ?? null,
       metricSeries: [...metrics].reverse(),
+      attendanceSeries: this.seriesFromCheckIns(
+        recentAttendance.map((a) => a.checkInAt),
+        14,
+      ),
+      recentVisits: recentAttendance.slice(0, 5).map((a) => ({
+        id: a.id,
+        checkInAt: a.checkInAt,
+        checkOutAt: a.checkOutAt,
+      })),
       suggestions,
     };
   }
@@ -193,19 +215,10 @@ export class ReportsService {
       where: { checkInAt: { gte: start } },
       select: { checkInAt: true },
     });
-    const map = new Map<string, number>();
-    for (let i = 0; i < span; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      map.set(this.localDateKey(d), 0);
-    }
-    for (const r of rows) {
-      const key = this.localDateKey(r.checkInAt);
-      if (map.has(key)) {
-        map.set(key, (map.get(key) || 0) + 1);
-      }
-    }
-    return [...map.entries()].map(([date, count]) => ({ date, count }));
+    return this.seriesFromCheckIns(
+      rows.map((r) => r.checkInAt),
+      span,
+    );
   }
 
   async membershipSummary(days = 30) {
@@ -448,6 +461,24 @@ export class ReportsService {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  }
+
+  private seriesFromCheckIns(checkIns: Date[], days = 14) {
+    const span = this.clampDays(days);
+    const start = this.rangeStartInclusive(span);
+    const map = new Map<string, number>();
+    for (let i = 0; i < span; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      map.set(this.localDateKey(d), 0);
+    }
+    for (const at of checkIns) {
+      const key = this.localDateKey(at);
+      if (map.has(key)) {
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    }
+    return [...map.entries()].map(([date, count]) => ({ date, count }));
   }
 
   private mondayBasedWeekday(d: Date) {

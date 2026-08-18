@@ -3,13 +3,17 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { MembershipStatus, Role } from '@prisma/client';
-import { MembersService } from './members.service';
+import { MembersService, photoUploadOptions } from './members.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
@@ -74,5 +78,22 @@ export class MembersController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.members.update(id, dto, user);
+  }
+
+  @Post(':id/photo')
+  @Roles(Role.ADMIN, Role.STAFF, Role.MEMBER)
+  @UseInterceptors(FileInterceptor('photo', photoUploadOptions()))
+  uploadPhoto(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.members.uploadPhoto(id, file, user);
+  }
+
+  @Delete(':id/photo')
+  @Roles(Role.ADMIN, Role.STAFF, Role.MEMBER)
+  clearPhoto(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.members.clearPhoto(id, user);
   }
 }

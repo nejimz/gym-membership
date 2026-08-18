@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSettings } from '@/lib/settings';
+import { MemberPhoto } from '@/components/MemberPhoto';
 
 type Plan = { id: string; name: string; durationDays: number; price: string };
 type Member = {
@@ -13,6 +14,7 @@ type Member = {
   phone?: string;
   status: string;
   endDate?: string;
+  photoUrl?: string | null;
   plan?: { name: string };
   user: { email: string };
 };
@@ -223,7 +225,14 @@ export function MembersPage({ basePath }: { basePath: '/admin' | '/staff' }) {
             {members.map((m) => (
               <tr key={m.id} className="border-b border-ink-800/5">
                 <td className="px-4 py-3 font-medium">
-                  {m.firstName} {m.lastName}
+                  <span className="inline-flex items-center gap-3">
+                    <MemberPhoto
+                      url={m.photoUrl}
+                      name={`${m.firstName} ${m.lastName}`}
+                      size="sm"
+                    />
+                    {m.firstName} {m.lastName}
+                  </span>
                 </td>
                 <td className="px-4 py-3">{m.user.email}</td>
                 <td className="px-4 py-3">{m.plan?.name ?? '—'}</td>

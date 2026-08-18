@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useSettings } from '@/lib/settings';
 import { api, Role } from '@/lib/api';
+import { MemberPhoto } from '@/components/MemberPhoto';
 import clsx from 'clsx';
 
 type NavIcon =
@@ -320,7 +321,11 @@ export function AppShell({
       )}
     >
       <span className="shrink-0 opacity-90">
-        <Glyph name="account" />
+        {user.photoUrl ? (
+          <MemberPhoto url={user.photoUrl} name={user.name || user.email} size="sm" />
+        ) : (
+          <Glyph name="account" />
+        )}
       </span>
       <span>Account</span>
     </Link>

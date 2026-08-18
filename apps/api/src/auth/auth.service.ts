@@ -29,15 +29,7 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user.id, user.email, user.role);
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        memberId: user.member?.id ?? null,
-        name: user.member
-          ? `${user.member.firstName} ${user.member.lastName}`
-          : user.email,
-      },
+      user: this.toPublicUser(user),
       ...tokens,
     };
   }
@@ -56,15 +48,7 @@ export class AuthService {
       if (!user) throw new UnauthorizedException();
       const tokens = await this.issueTokens(user.id, user.email, user.role);
       return {
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          memberId: user.member?.id ?? null,
-          name: user.member
-            ? `${user.member.firstName} ${user.member.lastName}`
-            : user.email,
-        },
+        user: this.toPublicUser(user),
         ...tokens,
       };
     } catch {
@@ -108,6 +92,23 @@ export class AuthService {
     });
     if (!user) throw new BadRequestException('User not found');
     return {
+      ...this.toPublicUser(user),
+      member: user.member,
+    };
+  }
+
+  private toPublicUser(user: {
+    id: string;
+    email: string;
+    role: string;
+    member?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      photoUrl?: string | null;
+    } | null;
+  }) {
+    return {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -115,7 +116,7 @@ export class AuthService {
       name: user.member
         ? `${user.member.firstName} ${user.member.lastName}`
         : user.email,
-      member: user.member,
+      photoUrl: user.member?.photoUrl ?? null,
     };
   }
 

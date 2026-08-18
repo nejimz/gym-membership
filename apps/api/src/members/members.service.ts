@@ -6,13 +6,39 @@ import {
 } from '@nestjs/common';
 import { MembershipStatus, Prisma, Role } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { extname, join } from 'path';
+import { diskStorage } from 'multer';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../auth/current-user.decorator';
 import { CreateMemberDto, UpdateMemberDto } from './dto/member.dto';
 
+const UPLOADS_ROOT = join(process.cwd(), 'uploads');
+const PHOTOS_DIR = join(UPLOADS_ROOT, 'photos');
+const PHOTO_URL_PREFIX = '/uploads/photos/';
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const PHOTO_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
+  'image/webp',
+  'image/gif',
+  'image/x-png',
+];
+const PHOTO_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+
+function ensurePhotosDir() {
+  if (!existsSync(PHOTOS_DIR)) {
+    mkdirSync(PHOTOS_DIR, { recursive: true });
+  }
+}
+
 @Injectable()
 export class MembersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {
+    ensurePhotosDir();
+  }
 
   async list(
     q?: string,
@@ -128,6 +154,8 @@ export class MembersService {
     if (actor.role === Role.MEMBER && actor.memberId !== id) {
       throw new ForbiddenException();
     }
+    await this.replacePhotoUrlIfChanged(id, dto.photoUrl);
+
     if (actor.role === Role.MEMBER) {
       const {
         firstName,
@@ -145,7 +173,7 @@ export class MembersService {
           lastName,
           phone,
           emergencyContact,
-          photoUrl,
+          photoUrl: photoUrl === '' ? null : photoUrl,
           heightCm,
           sex,
         },
@@ -154,6 +182,7 @@ export class MembersService {
     }
 
     const data: Record<string, unknown> = { ...dto };
+    if (dto.photoUrl === '') data.photoUrl = null;
     if (dto.dateOfBirth) data.dateOfBirth = new Date(dto.dateOfBirth);
     if (dto.startDate) data.startDate = new Date(dto.startDate);
     if (dto.endDate) data.endDate = new Date(dto.endDate);
@@ -194,6 +223,92 @@ export class MembersService {
     return updated;
   }
 
+  async uploadPhoto(id: string, file: Express.Multer.File | undefined, actor: AuthUser) {
+    try {
+      this.assertMemberAccess(id, actor);
+    } catch (err) {
+      this.deleteUploadedFile(file);
+      throw err;
+    }
+    if (!file) {
+      throw new BadRequestException('Photo file is required');
+    }
+
+    const member = await this.prisma.memberProfile.findUnique({ where: { id } });
+    if (!member) {
+      this.deleteUploadedFile(file);
+      throw new NotFoundException('Member not found');
+    }
+
+    this.deleteLocalPhoto(member.photoUrl);
+    const photoUrl = `${PHOTO_URL_PREFIX}${file.filename}`;
+    return this.prisma.memberProfile.update({
+      where: { id },
+      data: { photoUrl },
+      include: { plan: true, user: { select: { email: true } } },
+    });
+  }
+
+  async clearPhoto(id: string, actor: AuthUser) {
+    this.assertMemberAccess(id, actor);
+    const member = await this.prisma.memberProfile.findUnique({ where: { id } });
+    if (!member) throw new NotFoundException('Member not found');
+    if (!member.photoUrl) {
+      throw new NotFoundException('No profile photo set');
+    }
+    this.deleteLocalPhoto(member.photoUrl);
+    return this.prisma.memberProfile.update({
+      where: { id },
+      data: { photoUrl: null },
+      include: { plan: true, user: { select: { email: true } } },
+    });
+  }
+
+  private assertMemberAccess(id: string, actor: AuthUser) {
+    if (actor.role === Role.MEMBER && actor.memberId !== id) {
+      throw new ForbiddenException();
+    }
+  }
+
+  private async replacePhotoUrlIfChanged(id: string, nextUrl?: string) {
+    if (nextUrl === undefined) return;
+    const current = await this.prisma.memberProfile.findUnique({ where: { id } });
+    const normalized = nextUrl === '' ? null : nextUrl;
+    if (current?.photoUrl && current.photoUrl !== normalized) {
+      this.deleteLocalPhoto(current.photoUrl);
+    }
+  }
+
+  private deleteLocalPhoto(url: string | null | undefined) {
+    if (!url || !url.startsWith(PHOTO_URL_PREFIX)) return;
+    const filename = url.replace(PHOTO_URL_PREFIX, '');
+    if (
+      !filename ||
+      filename.includes('..') ||
+      filename.includes('/') ||
+      filename.includes('\\')
+    ) {
+      return;
+    }
+    const fullPath = join(PHOTOS_DIR, filename);
+    if (existsSync(fullPath)) {
+      try {
+        unlinkSync(fullPath);
+      } catch {
+        /* ignore missing file */
+      }
+    }
+  }
+
+  private deleteUploadedFile(file?: Express.Multer.File) {
+    if (!file?.path || !existsSync(file.path)) return;
+    try {
+      unlinkSync(file.path);
+    } catch {
+      /* ignore missing file */
+    }
+  }
+
   async renewalsDue(withinDays = 30) {
     const now = new Date();
     const until = new Date();
@@ -232,4 +347,47 @@ export class MembersService {
       .sort((a, b) => a.nextBirthday.getTime() - b.nextBirthday.getTime())
       .map(({ nextBirthday: _next, ...m }) => m);
   }
+}
+
+export function photoUploadOptions() {
+  ensurePhotosDir();
+  return {
+    limits: { fileSize: PHOTO_MAX_BYTES },
+    fileFilter: (
+      _req: unknown,
+      file: Express.Multer.File,
+      cb: (error: Error | null, acceptFile: boolean) => void,
+    ) => {
+      const ext = extname(file.originalname).toLowerCase();
+      const mimeOk = PHOTO_MIME_TYPES.includes(file.mimetype);
+      const extOk = PHOTO_EXTENSIONS.includes(ext);
+      if (!mimeOk && !extOk) {
+        return cb(
+          new BadRequestException('Only PNG, JPEG, WebP, or GIF images are allowed'),
+          false,
+        );
+      }
+      cb(null, true);
+    },
+    storage: diskStorage({
+      destination: (_req, _file, cb) => cb(null, PHOTOS_DIR),
+      filename: (_req, file, cb) => {
+        const ext = extname(file.originalname).toLowerCase();
+        const mimeExt: Record<string, string> = {
+          'image/png': '.png',
+          'image/x-png': '.png',
+          'image/jpeg': '.jpg',
+          'image/jpg': '.jpg',
+          'image/pjpeg': '.jpg',
+          'image/webp': '.webp',
+          'image/gif': '.gif',
+        };
+        const safeExt = PHOTO_EXTENSIONS.includes(ext)
+          ? ext
+          : mimeExt[file.mimetype] || '.jpg';
+        const name = `photo-${Date.now()}${safeExt}`;
+        cb(null, name);
+      },
+    }),
+  };
 }

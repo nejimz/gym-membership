@@ -11,4 +11,5 @@ coverage
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal
 apps/api/uploads/logos/*
+apps/api/uploads/photos/*
 !apps/api/uploads/.gitkeep

@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { ConfirmDialog, FlashBanner } from '@/components/Feedback';
+import { MemberPhoto } from '@/components/MemberPhoto';
 
 type Sex = 'MALE' | 'FEMALE';
 
@@ -15,16 +16,18 @@ type MemberProfile = {
   emergencyContact?: string | null;
   heightCm?: number | null;
   sex?: Sex | null;
+  photoUrl?: string | null;
 };
 
 export function AccountPage() {
   const { user, refresh } = useAuth();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState<'profile' | 'password' | null>(null);
+  const [busy, setBusy] = useState<'profile' | 'password' | 'photo' | null>(null);
   const [confirmProfile, setConfirmProfile] = useState(false);
 
   const [firstName, setFirstName] = useState('');
@@ -33,6 +36,7 @@ export function AccountPage() {
   const [emergencyContact, setEmergencyContact] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [sex, setSex] = useState<Sex | ''>('');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   const isMember = Boolean(user?.memberId);
 
@@ -48,6 +52,7 @@ export function AccountPage() {
         setEmergencyContact(m.emergencyContact ?? '');
         setHeightCm(m.heightCm != null ? String(m.heightCm) : '');
         setSex(m.sex ?? '');
+        setPhotoUrl(m.photoUrl ?? null);
       })
       .catch((e) => {
         if (!cancelled) {
@@ -69,7 +74,72 @@ export function AccountPage() {
   function requestSaveProfile(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
+    if (heightCm.trim()) {
+      const height = Number(heightCm);
+      if (!Number.isFinite(height) || height < 0) {
+        setNotice('');
+        setError('Height must be a valid number of centimeters.');
+        return;
+      }
+    }
     setConfirmProfile(true);
+  }
+
+  async function onUploadPhoto(file: File | null) {
+    if (!file || !user?.memberId || busy) return;
+    const typeOk =
+      file.type.startsWith('image/') ||
+      /\.(png|jpe?g|webp|gif)$/i.test(file.name);
+    if (!typeOk) {
+      setNotice('');
+      setError('Choose a PNG, JPEG, WebP, or GIF image.');
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setNotice('');
+      setError('Photo must be 5MB or smaller.');
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      return;
+    }
+    try {
+      setBusy('photo');
+      setError('');
+      setNotice('');
+      const form = new FormData();
+      form.append('photo', file);
+      const updated = await api<MemberProfile>(`/members/${user.memberId}/photo`, {
+        method: 'POST',
+        body: form,
+      });
+      setPhotoUrl(updated.photoUrl ?? null);
+      await refresh();
+      setNotice('Profile photo updated.');
+    } catch (err) {
+      setNotice('');
+      setError(err instanceof Error ? err.message : 'Failed to upload photo');
+    } finally {
+      setBusy(null);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  }
+
+  async function onClearPhoto() {
+    if (!user?.memberId || busy || !photoUrl) return;
+    try {
+      setBusy('photo');
+      setError('');
+      setNotice('');
+      await api(`/members/${user.memberId}/photo`, { method: 'DELETE' });
+      setPhotoUrl(null);
+      await refresh();
+      setNotice('Profile photo removed.');
+    } catch (err) {
+      setNotice('');
+      setError(err instanceof Error ? err.message : 'Failed to remove photo');
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function saveProfile() {
@@ -86,7 +156,7 @@ export function AccountPage() {
           lastName: lastName.trim(),
           phone: phone.trim() || null,
           emergencyContact: emergencyContact.trim() || null,
-          heightCm: heightCm ? Number(heightCm) : null,
+          heightCm: heightCm.trim() ? Number(heightCm) : null,
           sex: sex || null,
         }),
       });
@@ -154,8 +224,47 @@ export function AccountPage() {
       ) : null}
 
       {isMember ? (
-        <form onSubmit={requestSaveProfile} className="card-panel max-w-xl space-y-4">
+        <div className="card-panel max-w-xl space-y-4">
           <h2 className="font-display text-xl font-semibold">Your profile</h2>
+          <div className="flex flex-wrap items-center gap-4">
+            <MemberPhoto
+              url={photoUrl}
+              name={`${firstName} ${lastName}`.trim() || user?.name || user?.email || 'Member'}
+              size="lg"
+            />
+            <div className="min-w-0 flex-1 space-y-2">
+              <label className="label" htmlFor="account-photo">
+                Profile picture
+              </label>
+              <input
+                id="account-photo"
+                ref={photoInputRef}
+                className="input"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
+                disabled={busy != null}
+                onChange={(e) => onUploadPhoto(e.target.files?.[0] ?? null)}
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs text-ink-800/55">
+                  {busy === 'photo'
+                    ? 'Uploading…'
+                    : 'PNG, JPEG, WebP, or GIF — max 5MB.'}
+                </p>
+                {photoUrl ? (
+                  <button
+                    type="button"
+                    className="btn-ghost px-0 text-sm text-ember-500"
+                    disabled={busy != null}
+                    onClick={() => void onClearPhoto()}
+                  >
+                    Remove photo
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <form onSubmit={requestSaveProfile} className="space-y-4 border-t border-ink-800/10 pt-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="account-first-name">
@@ -235,7 +344,8 @@ export function AccountPage() {
           <button type="submit" className="btn-primary" disabled={busy != null}>
             {busy === 'profile' ? 'Saving…' : 'Save profile'}
           </button>
-        </form>
+          </form>
+        </div>
       ) : null}
 
       <form onSubmit={onSubmitPassword} className="card-panel max-w-xl space-y-4">

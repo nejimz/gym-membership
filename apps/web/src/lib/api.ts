@@ -8,6 +8,7 @@ export type AuthUser = {
   role: Role;
   memberId?: string | null;
   name?: string;
+  photoUrl?: string | null;
 };
 
 type ApiOptions = RequestInit & { token?: string | null };
